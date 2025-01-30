@@ -4,12 +4,6 @@ from multiprocessing import Pool
 
 from genlm_control.potential.base import Potential
 
-# Notes:
-# - multiprocessing does not work well with asyncio:
-#   - map_async.get() is blocking, so this is not a true async implementation
-#       - the event loop is blocked until the result is returned
-#   - the async functions are run synchronously in the worker processes
-
 
 def mp(potential, init_args, num_workers=2):
     return MultiProcessPotential(potential, init_args, num_workers)
@@ -25,8 +19,8 @@ class MultiProcessPotential(Potential):
             initargs=(potential_factory, factory_args),
         )
         # maybe TODO: use shared memory to pass the weights to the main process
-        vocabulary, eos = self.pool.map(self._get_attrs, [None])[0]
-        super().__init__(vocabulary, eos)
+        decode = self.pool.map(self._get_decode, [None])[0]
+        super().__init__(decode)
 
     @staticmethod
     def _init_worker(factory, args):
@@ -37,8 +31,8 @@ class MultiProcessPotential(Potential):
         asyncio.set_event_loop(_worker_event_loop)
 
     @staticmethod
-    def _get_attrs(self):
-        return _worker_potential.decode, _worker_potential.eos
+    def _get_decode(self):
+        return _worker_potential.decode
 
     @staticmethod
     def _run_coroutine(coroutine):
@@ -51,7 +45,7 @@ class MultiProcessPotential(Potential):
         """Worker process function for computing p_next."""
         return MultiProcessPotential._run_coroutine(
             _worker_potential.logp_next(context)
-        )
+        ).weights
 
     @staticmethod
     def _worker_prefix(context):
@@ -89,86 +83,67 @@ class MultiProcessPotential(Potential):
         """
         return MultiProcessPotential._run_coroutine(_worker_potential.score(context))
 
+    @staticmethod
+    def _worker_logp_next_seq(context, extension):
+        return MultiProcessPotential._run_coroutine(
+            _worker_potential.logp_next_seq(context, extension)
+        )
+
+    async def _run_in_pool(self, func, *args):
+        """Run a function in the process pool and return a Future."""
+        loop = asyncio.get_running_loop()
+        future = asyncio.Future()
+
+        def _callback(result):
+            loop.call_soon_threadsafe(future.set_result, result)
+
+        def _error_callback(exc):
+            loop.call_soon_threadsafe(future.set_exception, exc)
+
+        self.pool.apply_async(
+            func, args, callback=_callback, error_callback=_error_callback
+        )
+
+        return await future
+
     async def logp_next(self, context):
-        """Compute p_next for a single context.
-
-        Args:
-            context (List[bytes]): The context to process
-
-        Returns:
-            The result of calling p_next on a worker potential instance
-        """
-        results = self.pool.map_async(self._worker_logp_next, [context]).get()[0]
-        return self.make_lazy_weights(results)
+        """Compute p_next for a single context."""
+        result = await self._run_in_pool(self._worker_logp_next, context)
+        return self.make_lazy_weights(result)
 
     async def prefix(self, context):
-        """Compute prefix for a single context.
-
-        Args:
-            context (List[bytes]): The context to process
-
-        Returns:
-            The result of calling prefix on a worker potential instance
-        """
-        return self.pool.map_async(self._worker_prefix, [context]).get()[0]
+        """Compute prefix for a single context."""
+        return await self._run_in_pool(self._worker_prefix, context)
 
     async def complete(self, context):
-        """Compute complete for a single context.
+        """Compute complete for a single context."""
+        return await self._run_in_pool(self._worker_complete, context)
 
-        Args:
-            context (List[bytes]): The context to process
-
-        Returns:
-            The result of calling complete on a worker potential instance
-        """
-        return self.pool.map_async(self._worker_complete, [context]).get()[0]
+    async def logp_next_seq(self, context, extension):
+        return await self._run_in_pool(self._worker_logp_next_seq, context, extension)
 
     async def batch_logp_next(self, contexts):
-        """Compute p_next for multiple contexts in parallel.
-
-        Args:
-            contexts (List[List[bytes]]): List of contexts to process
-
-        Returns:
-            (np.array): Results of p_next for each context
-        """
-        results = self.pool.map_async(self._worker_logp_next, contexts).get()
-        return np.array([self.make_lazy_weights(result) for result in results])
-
-    async def batch_score(self, contexts):
-        """Compute score for multiple contexts in parallel.
-
-        Args:
-            contexts (List[List[bytes]]): List of contexts to process
-
-        Returns:
-            (list): Results of score for each context
-        """
-        results = self.pool.map_async(self._worker_score, contexts).get()
-        return np.array(results)
+        """Compute p_next for multiple contexts in parallel."""
+        results = await asyncio.gather(
+            *(
+                self._run_in_pool(self._worker_logp_next, context)
+                for context in contexts
+            )
+        )
+        return [self.make_lazy_weights(result) for result in results]
 
     async def batch_complete(self, contexts):
-        """Compute complete for multiple contexts in parallel.
-
-        Args:
-            contexts (List[List[bytes]]): List of contexts to process
-
-        Returns:
-            (list): Results of complete for each context
-        """
-        results = self.pool.map_async(self._worker_complete, contexts).get()
+        """Compute complete for multiple contexts in parallel."""
+        results = await asyncio.gather(
+            *(self._run_in_pool(self._worker_complete, context) for context in contexts)
+        )
         return np.array(results)
 
     async def batch_prefix(self, contexts):
-        """Compute prefix for multiple contexts in parallel.
-
-        Args:
-            contexts (List[List[bytes]]): List of contexts to process
-
-        Returns:
-            (list): Results of prefix for each context
-        """
-        results = self.pool.map(self._worker_prefix, contexts)
+        """Compute prefix for multiple contexts in parallel."""
+        results = await asyncio.gather(
+            *(self._run_in_pool(self._worker_prefix, context) for context in contexts)
+        )
         return np.array(results)
 
     def __del__(self):
