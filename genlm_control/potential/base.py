@@ -54,9 +54,38 @@ class Potential(ABC, PotentialOperators):
         return (await self.score(context + extension)) - (await self.prefix(context))
 
     async def batch_logp_next(self, contexts):
-        return np.array(
-            await asyncio.gather(*[self.logp_next(context) for context in contexts])
+        N = len(contexts)
+        V = len(self.decode)
+        
+        all_extended = [
+            [*context, token] 
+            for context in contexts 
+            for token in self.decode
+        ]
+        
+        complete_ws, prefix_ws = await asyncio.gather(
+            self.batch_complete(contexts),
+            self.batch_prefix(contexts + all_extended)
         )
+        
+        assert len(complete_ws) == N, f"Expected {N} complete scores, got {len(complete_ws)}"
+        assert len(prefix_ws) == N * (V + 1), f"Expected {N * (V + 1)} prefix scores, got {len(prefix_ws)}"
+        
+        context_ws = prefix_ws[:N]
+        extended_ws = prefix_ws[N:]
+        
+        logp_nexts = []
+        for n in range(N):
+            if context_ws[n] == float('-inf'):
+                raise ValueError(f"Context {contexts[n]!r} is not in the potential's domain.")
+                
+            W = np.zeros(len(self.decode_eos))
+            W[:-1] = extended_ws[n * V:(n + 1) * V] - context_ws[n]  # decode
+            W[-1] = complete_ws[n] - context_ws[n]                   # eos
+            
+            logp_nexts.append(self.make_lazy_weights(W))
+
+        return logp_nexts
 
     async def batch_complete(self, contexts):      
         return np.array(
