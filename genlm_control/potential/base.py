@@ -1,10 +1,8 @@
 import asyncio
 import numpy as np
 from abc import ABC, abstractmethod
-from arsenal.maths import logsumexp, sample_dict
 
 from genlm_control.util import LazyWeights
-from genlm_control.sampler import WeightedSample
 from genlm_control.operators import PotentialOperators
 
 
@@ -113,6 +111,7 @@ class Potential(ABC, PotentialOperators):
         )
         return scores - prefix
 
+    """
     async def sample(
         self,
         n_samples,
@@ -123,7 +122,6 @@ class Potential(ABC, PotentialOperators):
         max_tokens=25,
         draw=sample_dict,
     ):
-        """Generates samples that are properly weighted with respect to self * critic."""
         if not generator:
             generator = self
 
@@ -167,7 +165,8 @@ class Potential(ABC, PotentialOperators):
             for a, twist_amt in zip(particles, twist_amts):
                 a.twist(twist_amt)
 
-        return context, -1  # log_w
+        return particles
+    """
 
     def make_lazy_weights(self, weights, log=True):
         return LazyWeights(
@@ -182,7 +181,6 @@ class Potential(ABC, PotentialOperators):
         self, context, rtol=1e-3, atol=1e-5, top=None, verbosity=0
     ):
         logp_next = await self.logp_next(context)
-        _top_logps = logp_next.materialize(top=top)
 
         context_w = await self.prefix(context)
         top_logp_next = logp_next.materialize(top=top)
