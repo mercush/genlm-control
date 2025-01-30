@@ -6,12 +6,14 @@ from arsenal.maths import logsumexp
 # from genlm_backend.llm import load_model_by_name
 
 from genlm_control.potential.base import Potential
-
 from genlm_backend.llm import AsyncVirtualLM, AsyncTransformer, MockAsyncLM
 
 
 def load_model_by_name(name, backend, **kwargs):  # REMOVE
     if backend == "vllm":
+
+def load_model_by_name(name, backend, **kwargs):
+    if backend == 'vllm':
         model_cls = AsyncVirtualLM
     elif backend == "hf":
         model_cls = AsyncTransformer
@@ -97,7 +99,7 @@ class PromptedLLM(Potential):
     def prompt(self):
         """Get the current prompt."""
         if not self.prompt_ids:
-            return None
+            return
         return [self.token_maps.decode[x] for x in self.prompt_ids]
 
     @prompt.setter

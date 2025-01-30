@@ -6,38 +6,6 @@ from genlm_grammar.cfglm import locally_normalize, _gen_nt
 from genlm_control.potential.base import Potential, EOS
 
 
-def to_bytes_(self):  # MOVE TO CFG
-    """Convert terminal symbols from strings to bytes representation.
-
-    This method creates a new grammar where all terminal string symbols are
-    converted to their UTF-8 byte representation. Non-terminal symbols are
-    preserved as-is.
-
-    Returns:
-        CFG: A new grammar with byte terminal symbols
-
-    Raises:
-        ValueError: If a terminal symbol is not a string
-    """
-    new = self.spawn(S=self.S, R=self.R, V=set())
-
-    for r in self:
-        new_body = []
-        for x in r.body:
-            if self.is_terminal(x):
-                if not isinstance(x, str):
-                    raise ValueError(f"unsupported terminal type: {type(x)}")
-                bs = list(x.encode("utf-8"))
-                for b in bs:
-                    new.V.add(b)
-                new_body.extend(bs)
-            else:
-                new_body.append(x)
-        new.add(r.w, r.head, *new_body)
-
-    return new
-
-
 class WCFG(Potential):
     """
     Represents a Weighted Context-Free Grammar (WCFG) potential.
@@ -89,7 +57,7 @@ class WCFG(Potential):
         """
         cfg = CFG.from_string(grammar, Float)
         if to_bytes:
-            cfg = to_bytes_(cfg)
+            cfg = cfg.to_bytes()
         return cls(cfg, **kwargs)
 
     async def complete(self, context):
@@ -154,7 +122,7 @@ class PCFG(WCFG):
 class BoolCFG(WCFG):
     @classmethod
     def from_lark(cls, lark_string, charset="core"):
-        byte_cfg = to_bytes_(LarkStuff(lark_string).char_cfg(charset=charset))
+        byte_cfg = LarkStuff(lark_string).byte_cfg(charset=charset)
         return cls(byte_cfg)
 
     async def prefix(self, context):
