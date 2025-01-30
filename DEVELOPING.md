@@ -1,7 +1,7 @@
 # Developer's Guide
 
 This guide describes how to complete various tasks you'll encounter when working
-on the `genlm-backend` codebase.
+on the `genlm-control` codebase.
 
 ## Commit Hooks
 
