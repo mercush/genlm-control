@@ -48,9 +48,9 @@ class WFSA(Potential):
             wfsa = wfsa.to_bytes()
         return cls(wfsa=wfsa)
 
-    def _consume_prefix(self, bs):
+    def _consume(self, bs, start=None):
         wfsa = self.wfsa.epsremove
-        prev = wfsa.start
+        prev = start or wfsa.start
         for b in bs:
             curr = wfsa.R.chart()
             for i in prev:
@@ -64,8 +64,9 @@ class WFSA(Potential):
         return np.log(w) if w > 0 else float('-inf')
 
     async def prefix(self, context):
-        next_state_ws = self._consume_prefix(context)
-        w = next_state_ws.sum() # ? 
+        curr = self._consume(context)
+        bkwd = self.wfsa.epsremove.backward
+        w = sum(curr[i] * bkwd[i] for i in curr)
         return np.log(w) if w > 0 else float('-inf')
 
     async def logp_next(self, context):
@@ -77,31 +78,37 @@ class WFSA(Potential):
         Returns:
             (LazyWeights): Log-probabilities for next token.
         """
-        prev = self._consume_prefix(context)
+        curr = self._consume(context)
+        bkwd = self.wfsa.epsremove.backward
+        ctx_w = sum(curr[i] * bkwd[i] for i in curr)
+
+        if not ctx_w:
+            raise ValueError(f"Context {context!r} has zero weight.")
+
+        log_ctx_w = np.log(ctx_w)
+
         ws = self.wfsa.R.chart()
-        for i in prev:
-            for b, _, w in self.wfsa.epsremove.arcs(i=i):
-                ws[b] += prev[i] * w
+        for i in curr:
+            for b, j, w in self.wfsa.epsremove.arcs(i=i):
+                ws[b] += curr[i] * w * bkwd[j]
 
         ws[EOS] = self.wfsa.R.zero
         for j, w in self.wfsa.epsremove.F:
-            ws[EOS] += prev[j] * w
+            ws[EOS] += curr[j] * w
 
-        ps = ws.trim().normalize()
-
-        log_ps = np.array([
-            np.log(ps[x]) if ps[x] > 0 else float('-inf') 
-            for x in self.decode_eos
+        log_ws = np.array([
+            np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float('-inf') 
+            for b in self.decode_eos
         ])
 
-        return self.make_lazy_weights(log_ps)
+        return self.make_lazy_weights(log_ws)
 
     def _repr_svg_(self):
         return self.wfsa._repr_svg_()
 
     def __repr__(self):
         return f"WFSA(wfsa={self.wfsa!r})"
-
+    
 
 class BoolFSA(WFSA):
     """ Boolean FSA potential. """
