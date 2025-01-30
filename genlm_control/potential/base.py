@@ -148,8 +148,8 @@ class Potential(ABC, PotentialOperators):
                     a.log_w += correction
 
             if critic and resampler:
-                twist_amts = critic.batch_score([a.context for a in active])
-                for a, twist_amt in zip(active, twist_amts):
+                twist_amts = critic.batch_score([a.context for a in particles])
+                for a, twist_amt in zip(particles, twist_amts):
                     a.twist(twist_amt)
 
             if resampler:
@@ -164,10 +164,10 @@ class Potential(ABC, PotentialOperators):
 
         if critic and not resampler:
             twist_amts = critic.batch_score([a.context for a in particles])
-            for a, twist_amt in zip(active, twist_amts):
+            for a, twist_amt in zip(particles, twist_amts):
                 a.twist(twist_amt)
 
-        return context, log_w
+        return context, -1 # log_w
 
     def make_lazy_weights(self, weights, log=True):
         return LazyWeights(
