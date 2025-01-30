@@ -150,35 +150,30 @@ class PromptedLLM(Potential):
 
     async def log_probability(self, context):
         """Compute the log probability of the context given the prompt."""
-        # TODO: Implement scoring methods for AsyncLMs.
         if not context:
-            raise ValueError("context must be non-empty")
+            raise ValueError("Context must be non-empty.")
 
         context_ids = self.encode_tokens(context)
-        logps = await self.model.batch_next_token_logprobs(
-            [self.prompt_ids + context_ids[:i] for i in range(len(context_ids))]
-        )
-        target_ids = torch.tensor(context_ids, device=logps.device).unsqueeze(1)
+        prefixes = [self.prompt_ids + context_ids[:i] for i in range(len(context_ids))]
+        log_ps = await self.model.batch_next_token_logprobs(prefixes)
+
+        target_ids = torch.tensor(context_ids, device=log_ps.device)
         with torch.no_grad():
-            logp = torch.gather(logps, 1, target_ids).sum().item()
-        return logp
+            token_logprobs = torch.gather(log_ps, 1, target_ids.unsqueeze(1))
+            total_logprob = token_logprobs.sum().item()
+
+        return total_logprob
 
     async def prefix(self, context):
         return await self.log_probability(context)
 
     async def complete(self, context):
-        """Compute the log probability of the context given the prompt.
-
-        Args:
-            context (List[bytes]): List of tokens representing the context to score
-
-        Returns:
-            (torch.Tensor): Log probability of the context given the prompt
-        """
         logp_context = await self.log_probability(context)
-        logp_next = await self.model.next_token_logprobs(context)
-        _logp_eos = logsumexp([logp_next.weights[x] for x in self.token_maps.eos_idxs])
-        return logp_context
+        logp_next = await self.model.next_token_logprobs(
+            self.prompt_ids + self.encode_tokens(context)
+        )
+        logp_eos = torch.logsumexp(logp_next[self.token_maps.eos_idxs], dim=0).item()
+        return logp_context + logp_eos
 
     def _process_logp_next(self, logp_next):
         """Process the log probabilities for the next tokens.
