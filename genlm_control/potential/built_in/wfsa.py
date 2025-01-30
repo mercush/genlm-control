@@ -67,7 +67,7 @@ class WFSA(Potential):
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
         w = sum(curr[i] * bkwd[i] for i in curr)
-        return np.log(w) if w > 0 else float('-inf')
+        return np.log(w) if w > 0 else float("-inf")
 
     async def logp_next(self, context):
         """Returns next token log probabilities after consuming context.
@@ -96,10 +96,12 @@ class WFSA(Potential):
         for j, w in self.wfsa.epsremove.F:
             ws[EOS] += curr[j] * w
 
-        log_ws = np.array([
-            np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float('-inf') 
-            for b in self.decode_eos
-        ])
+        log_ws = np.array(
+            [
+                np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float("-inf")
+                for b in self.decode_eos
+            ]
+        )
 
         return self.make_lazy_weights(log_ws)
 
@@ -108,7 +110,7 @@ class WFSA(Potential):
 
     def __repr__(self):
         return f"WFSA(wfsa={self.wfsa!r})"
-    
+
 
 class BoolFSA(WFSA):
     """Boolean FSA potential."""
