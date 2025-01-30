@@ -3,17 +3,16 @@ from genlm_grammar import CFG, Earley, Float
 from genlm_grammar.lark_interface import LarkStuff
 from genlm_grammar.cfglm import locally_normalize, _gen_nt
 
-from genlm_control.util import LazyWeights
 from genlm_control.potential.base import Potential, EOS
 
 
-def to_bytes_(self): # MOVE TO CFG
+def to_bytes_(self):  # MOVE TO CFG
     """Convert terminal symbols from strings to bytes representation.
 
-    This method creates a new grammar where all terminal string symbols are 
-    converted to their UTF-8 byte representation. Non-terminal symbols are 
+    This method creates a new grammar where all terminal string symbols are
+    converted to their UTF-8 byte representation. Non-terminal symbols are
     preserved as-is.
-    
+
     Returns:
         CFG: A new grammar with byte terminal symbols
 
@@ -27,16 +26,17 @@ def to_bytes_(self): # MOVE TO CFG
         for x in r.body:
             if self.is_terminal(x):
                 if not isinstance(x, str):
-                    raise ValueError(f'unsupported terminal type: {type(x)}')
-                bs = list(x.encode('utf-8'))
+                    raise ValueError(f"unsupported terminal type: {type(x)}")
+                bs = list(x.encode("utf-8"))
                 for b in bs:
                     new.V.add(b)
                 new_body.extend(bs)
             else:
                 new_body.append(x)
         new.add(r.w, r.head, *new_body)
-    
+
     return new
+
 
 class WCFG(Potential):
     """
@@ -53,17 +53,20 @@ class WCFG(Potential):
         logp_next(context): Computes the log weights for the next tokens given the context.
         clear_cache(): Clears the internal cache of the grammar model.
     """
+
     def __init__(self, cfg):
         if cfg.R is not Float:
-            raise ValueError('cfg semiring must be Float')
-        self.cfg = cfg # cfg before prefix transform & normalization, augmented with eos
-        self.cfg_eos = self._add_eos(cfg, EOS) # augmented with eos
+            raise ValueError("cfg semiring must be Float")
+        self.cfg = (
+            cfg  # cfg before prefix transform & normalization, augmented with eos
+        )
+        self.cfg_eos = self._add_eos(cfg, EOS)  # augmented with eos
         self.model = Earley(self.cfg_eos.prefix_grammar)
         super().__init__(vocabulary=list(cfg.V))
 
     @staticmethod
     def _add_eos(cfg, eos):
-        S = _gen_nt('<START>')
+        S = _gen_nt("<START>")
         cfg_eos = cfg.spawn(S=S)
         cfg_eos.V.add(eos)
         cfg_eos.add(cfg.R.one, S, cfg.S, eos)
@@ -91,7 +94,7 @@ class WCFG(Potential):
 
     async def complete(self, context):
         """
-        Compute the log weight of the context under the WCFG. 
+        Compute the log weight of the context under the WCFG.
 
         Args:
             context (list[bytes]): The context to compute the weight for.
@@ -100,7 +103,7 @@ class WCFG(Potential):
             (float): The log weight of the context under the WCFG.
         """
         w = self.model(list(context) + [EOS])
-        return np.log(w) if w > 0 else float('-inf')
+        return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
         """
@@ -113,7 +116,7 @@ class WCFG(Potential):
             (float): The log prefix weight of the context under the WCFG.
         """
         w = self.model(context)
-        return np.log(w) if w > 0 else float('-inf')
+        return np.log(w) if w > 0 else float("-inf")
 
     async def logp_next(self, context):
         """
@@ -127,9 +130,9 @@ class WCFG(Potential):
         """
         ws = self.model.next_token_weights(self.model.chart(context))
         ps = ws.trim().normalize()
-        log_ps = np.array([
-            np.log(ps[x]) if ps[x] > 0 else float('-inf') for x in self.decode_eos
-        ])
+        log_ps = np.array(
+            [np.log(ps[x]) if ps[x] > 0 else float("-inf") for x in self.decode_eos]
+        )
         return self.make_lazy_weights(log_ps)
 
     def clear_cache(self):
@@ -149,29 +152,28 @@ class PCFG(WCFG):
 
 
 class BoolCFG(WCFG):
-
     @classmethod
-    def from_lark(cls, lark_string, charset='core'):
+    def from_lark(cls, lark_string, charset="core"):
         byte_cfg = to_bytes_(LarkStuff(lark_string).char_cfg(charset=charset))
         return cls(byte_cfg)
 
     async def prefix(self, context):
         prefix_w = await super().prefix(context)
-        if prefix_w > float('-inf'):
+        if prefix_w > float("-inf"):
             return 0
-        return float('-inf')
+        return float("-inf")
 
     async def complete(self, context):
         complete_w = await super().complete(context)
-        if complete_w > float('-inf'):
+        if complete_w > float("-inf"):
             return 0
-        return float('-inf')
+        return float("-inf")
 
     async def logp_next(self, context):
         logp_next = await super().logp_next(context)
         return logp_next.spawn(
             new_weights=np.where(
-                logp_next.weights > float('-inf'), 0, logp_next.weights
+                logp_next.weights > float("-inf"), 0, logp_next.weights
             )
         )
 

@@ -3,7 +3,6 @@ import numpy as np
 from multiprocessing import Pool
 
 from genlm_control.potential.base import Potential
-from genlm_control.util import LazyWeights
 
 # Notes:
 # - multiprocessing does not work well with asyncio:
@@ -11,16 +10,19 @@ from genlm_control.util import LazyWeights
 #       - the event loop is blocked until the result is returned
 #   - the async functions are run synchronously in the worker processes
 
+
 def mp(potential, init_args, num_workers=2):
     return MultiProcessPotential(potential, init_args, num_workers)
 
+
 class MultiProcessPotential(Potential):
     """A Potential that adds parallel processing capabilities to any base Potential implementation."""
+
     def __init__(self, potential_factory, factory_args, num_workers=2):
         self.pool = Pool(
             num_workers,
             initializer=self._init_worker,
-            initargs=(potential_factory, factory_args)
+            initargs=(potential_factory, factory_args),
         )
         # maybe TODO: use shared memory to pass the weights to the main process
         vocabulary, eos = self.pool.map(self._get_attrs, [None])[0]
@@ -61,9 +63,7 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling prefix on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(
-            _worker_potential.prefix(context)
-        )
+        return MultiProcessPotential._run_coroutine(_worker_potential.prefix(context))
 
     @staticmethod
     def _worker_complete(context):
@@ -75,9 +75,7 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling complete on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(
-            _worker_potential.complete(context)
-        )
+        return MultiProcessPotential._run_coroutine(_worker_potential.complete(context))
 
     @staticmethod
     def _worker_score(context):
@@ -89,9 +87,7 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling score on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(
-            _worker_potential.score(context)
-        )
+        return MultiProcessPotential._run_coroutine(_worker_potential.score(context))
 
     async def logp_next(self, context):
         """Compute p_next for a single context.

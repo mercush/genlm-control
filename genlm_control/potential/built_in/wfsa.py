@@ -1,15 +1,14 @@
 import string
 import numpy as np
 
-from genlm_grammar import WFSA as BaseWFSA, Float
+from genlm_grammar import Float
 from genlm_grammar.lark_interface import interegular_to_wfsa
 
-from genlm_control.util import LazyWeights
 from genlm_control.potential.base import Potential, EOS
 
 
 class WFSA(Potential):
-    """ 
+    """
     WFSA potential class that models Potentials based on WFSAs. Wraps a `genlm_grammar.WFSA`.
 
     Attributes:
@@ -17,6 +16,7 @@ class WFSA(Potential):
             Any output weights will be converted to log space.
         eos (bytes): End-of-sequence token.
     """
+
     def __init__(self, wfsa):
         self.wfsa = wfsa
         if wfsa.R is not Float:
@@ -32,7 +32,7 @@ class WFSA(Potential):
             pattern (str): The regex pattern to convert into a WFSA.
             eos (bytes|str): The end-of-sequence token to be used in the WFSA.
             charset (set): The character set to use for negative character classes.
-                Defaults to characters in string.printable. 
+                Defaults to characters in string.printable.
             to_bytes (bool): Whether to convert the WFSA transitions to bytes.
                 Defaults to True. When set to False, the WFSA transitions will be strings.
 
@@ -61,7 +61,7 @@ class WFSA(Potential):
 
     async def complete(self, context):
         w = self.wfsa(context)
-        return np.log(w) if w > 0 else float('-inf')
+        return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
         curr = self._consume(context)
@@ -71,10 +71,10 @@ class WFSA(Potential):
 
     async def logp_next(self, context):
         """Returns next token log probabilities after consuming context.
-        
+
         Args:
             context (bytes): Input sequence
-            
+
         Returns:
             (LazyWeights): Log-probabilities for next token.
         """
@@ -111,25 +111,25 @@ class WFSA(Potential):
     
 
 class BoolFSA(WFSA):
-    """ Boolean FSA potential. """
+    """Boolean FSA potential."""
 
     async def prefix(self, context):
         prefix_w = await super().prefix(context)
-        if prefix_w > float('-inf'):
+        if prefix_w > float("-inf"):
             return 0
-        return float('-inf')
+        return float("-inf")
 
     async def complete(self, context):
         complete_w = await super().complete(context)
-        if complete_w > float('-inf'):
+        if complete_w > float("-inf"):
             return 0
-        return float('-inf')
+        return float("-inf")
 
     async def logp_next(self, context):
         logp_next = await super().logp_next(context)
         return logp_next.spawn(
             new_weights=np.where(
-                logp_next.weights > float('-inf'), 0, logp_next.weights
+                logp_next.weights > float("-inf"), 0, logp_next.weights
             )
         )
 
