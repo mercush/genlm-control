@@ -167,7 +167,7 @@ class Potential(ABC, PotentialOperators):
             for a, twist_amt in zip(particles, twist_amts):
                 a.twist(twist_amt)
 
-        return context, -1 # log_w
+        return context, -1  # log_w
 
     def make_lazy_weights(self, weights, log=True):
         return LazyWeights(
