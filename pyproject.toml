@@ -19,6 +19,7 @@ dependencies = [
     "IPython",
     "numpy",
     "torch",
+    "pylsp",
 ]
 
 [project.optional-dependencies]
