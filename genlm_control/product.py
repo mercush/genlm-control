@@ -1,9 +1,10 @@
 import asyncio
-import numpy as np
-from genlm_control.potential.base import Potential, EOS
+from genlm_control.potential.base import Potential
+
 
 class Product(Potential):
-    """ Unnormalized product of two potentials. Since a Product is a Potential, these can nest."""
+    """Unnormalized product of two potentials. Since a Product is a Potential, these can nest."""
+
     def __init__(self, p1, p2):
         self.p1 = p1
         self.p2 = p2
@@ -16,51 +17,44 @@ class Product(Potential):
         self.v2_idxs = [p2.encode_eos[token] for token in self.decode_eos]
 
     async def prefix(self, context):
-        w1, w2 = await asyncio.gather(
-            self.p1.prefix(context),
-            self.p2.prefix(context)
-        )
+        w1, w2 = await asyncio.gather(self.p1.prefix(context), self.p2.prefix(context))
         return w1 + w2
 
     async def complete(self, context):
         w1, w2 = await asyncio.gather(
-            self.p1.complete(context), 
-            self.p2.complete(context)
+            self.p1.complete(context), self.p2.complete(context)
         )
         return w1 + w2
 
     async def logp_next_seq(self, context, extension):
         W1, W2 = await asyncio.gather(
             self.p1.logp_next_seq(context, extension),
-            self.p2.logp_next_seq(context, extension)
+            self.p2.logp_next_seq(context, extension),
         )
         return W1 + W2
 
     async def batch_complete(self, contexts):
         W1, W2 = await asyncio.gather(
-            self.p1.batch_complete(contexts),
-            self.p2.batch_complete(contexts)
+            self.p1.batch_complete(contexts), self.p2.batch_complete(contexts)
         )
         return W1 + W2
 
     async def batch_prefix(self, contexts):
         W1, W2 = await asyncio.gather(
-            self.p1.batch_prefix(contexts),
-            self.p2.batch_prefix(contexts)
+            self.p1.batch_prefix(contexts), self.p2.batch_prefix(contexts)
         )
         return W1 + W2
 
     async def batch_logp_next_seq(self, context, extensions):
         W1, W2 = await asyncio.gather(
             self.p1.batch_logp_next_seq(context, extensions),
-            self.p2.batch_logp_next_seq(context, extensions)
+            self.p2.batch_logp_next_seq(context, extensions),
         )
         return W1 + W2
 
     async def logp_next(self, context):
         W1, W2 = await asyncio.gather(
-            self.p1.logp_next(context), 
-            self.p2.logp_next(context)
+            self.p1.logp_next(context), self.p2.logp_next(context)
         )
         return self.make_lazy_weights(
             W1.weights[self.v1_idxs] + W2.weights[self.v2_idxs]
@@ -68,13 +62,13 @@ class Product(Potential):
 
     async def batch_logp_next(self, contexts):
         Ws1, Ws2 = await asyncio.gather(
-            self.p1.batch_logp_next(contexts),
-            self.p2.batch_logp_next(contexts)
+            self.p1.batch_logp_next(contexts), self.p2.batch_logp_next(contexts)
         )
         return [
             self.make_lazy_weights(
                 Ws1[n].weights[self.v1_idxs] + Ws2[n].weights[self.v2_idxs]
-            ) for n in range(len(contexts))
+            )
+            for n in range(len(contexts))
         ]
 
     def __repr__(self):
