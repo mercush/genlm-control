@@ -36,7 +36,7 @@ class TokenMappings(NamedTuple):
     def create(cls, decode, eos_tokens):
         encode = {x: i for i, x in enumerate(decode)}
         if not all(eos in encode for eos in eos_tokens):
-            raise ValueError(f"EOS token not in language model vocabulary")
+            raise ValueError("EOS token not in language model vocabulary")
         eos_idxs = [encode[eos] for eos in eos_tokens]
         return cls(decode=decode, encode=encode, eos_idxs=eos_idxs)
 
