@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from genlm_control.potential.base import Potential, EOS
-from genlm_control.potential.mp import mp
+from genlm_control.potential.mp import MPPotential
 
 
 class SimplePotential(Potential):
@@ -20,7 +20,7 @@ def V():
 
 @pytest.fixture
 def mp_potential(V):
-    return mp(SimplePotential, (V,), num_workers=2)
+    return MPPotential(SimplePotential, (V,), num_workers=2)
 
 
 @pytest.fixture

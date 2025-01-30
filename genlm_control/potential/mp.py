@@ -1,15 +1,10 @@
 import asyncio
 import numpy as np
 from multiprocessing import Pool
-
 from genlm_control.potential.base import Potential
 
 
-def mp(potential, init_args, num_workers=2):
-    return MultiProcessPotential(potential, init_args, num_workers)
-
-
-class MultiProcessPotential(Potential):
+class MPPotential(Potential):
     """A Potential that adds parallel processing capabilities to any base Potential implementation."""
 
     def __init__(self, potential_factory, factory_args, num_workers=2):
@@ -43,9 +38,7 @@ class MultiProcessPotential(Potential):
     @staticmethod
     def _worker_logp_next(context):
         """Worker process function for computing p_next."""
-        return MultiProcessPotential._run_coroutine(
-            _worker_potential.logp_next(context)
-        ).weights
+        return MPPotential._run_coroutine(_worker_potential.logp_next(context)).weights
 
     @staticmethod
     def _worker_prefix(context):
@@ -57,7 +50,7 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling prefix on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(_worker_potential.prefix(context))
+        return MPPotential._run_coroutine(_worker_potential.prefix(context))
 
     @staticmethod
     def _worker_complete(context):
@@ -69,7 +62,7 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling complete on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(_worker_potential.complete(context))
+        return MPPotential._run_coroutine(_worker_potential.complete(context))
 
     @staticmethod
     def _worker_score(context):
@@ -81,11 +74,11 @@ class MultiProcessPotential(Potential):
         Returns:
             The result of calling score on the worker's potential instance
         """
-        return MultiProcessPotential._run_coroutine(_worker_potential.score(context))
+        return MPPotential._run_coroutine(_worker_potential.score(context))
 
     @staticmethod
     def _worker_logp_next_seq(context, extension):
-        return MultiProcessPotential._run_coroutine(
+        return MPPotential._run_coroutine(
             _worker_potential.logp_next_seq(context, extension)
         )
 
