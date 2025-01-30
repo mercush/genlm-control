@@ -1,5 +1,3 @@
-# genlm-control
-
 [![Docs](https://github.com/chi-collective/genlm-control/actions/workflows/docs.yml/badge.svg)](https://chi-collective.github.io/genlm-control/)
 
 # GenLM Control
@@ -31,9 +29,6 @@ which also installs the dependencies needed for testing (test) and documentation
 
 - Python >= 3.11
 - The core dependencies listed in the `pyproject.toml` file of the repository.
-
-> **Note**
-> vLLM is not supported on macOS. On macOS systems, only CPU-based functionality (`AsyncTransformer`) will be available. GPU-accelerated features requiring vLLM (`AsyncVirtualLM`) will not work.
 
 ## Testing
 
