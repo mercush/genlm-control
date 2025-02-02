@@ -1,12 +1,25 @@
 import asyncio
 import numpy as np
 from abc import ABC, abstractmethod
+from arsenal.maths import logsumexp
 
+from genlm_control.constant import EOS
 from genlm_control.util import LazyWeights
-from genlm_control.operators import PotentialOperators
+from genlm_control.operators import PotentialOps
+from genlm_control.potential.testing import PotentialTests
 
 
-class Potential(ABC, PotentialOperators):
+class Potential(ABC, PotentialOps, PotentialTests):
+    """Abstract base class for potentials.
+
+    A Potential represents a weighted language over a vocabulary. It must minimally
+    implement methods to assess the weight of a sequence as a member of the language (`complete`) and
+    as a prefix of the language (`prefix`).
+
+    Args:
+        vocabulary (list): List of tokens that make up the vocabulary.
+    """
+
     def __init__(self, vocabulary):
         self.decode = vocabulary
         self.encode = {}
@@ -17,236 +30,302 @@ class Potential(ABC, PotentialOperators):
         self.decode_eos = self.decode + [EOS]
         self.encode_eos = {**self.encode, **{EOS: len(self.decode)}}
 
+    ####################
+    # Instance methods #
+    ####################
+
     @abstractmethod
     async def complete(self, context):
+        """Assess the weight of `context` as a member of the language.
+
+        Args:
+            context (list): Sequence of tokens to score.
+
+        Returns:
+            (float): Log weight of the context under the language.
+        """
         pass
 
     @abstractmethod
     async def prefix(self, context):
+        """Assess the weight of `context` as a prefix of the language.
+
+        Args:
+            context (list): Sequence of tokens to score.
+
+        Returns:
+            (float): Log weight of the context as a prefix of the language.
+        """
         pass
 
     async def score(self, context):
-        if context and context[-1] is EOS:
-            return await self.complete(context[:-1])
-        return await self.prefix(context)
+        """Assess the weight of `context` based on EOS-termination.
 
-    async def logp_next(self, context):
-        # logp_next(x)[eos] = complete(x) - prefix(x)
-        # logp_next(x)[y] = prefix(x + y) - prefix(x)
-        extended = [[*context, token] for token in self.decode]
-        w_complete, W_prefix = await asyncio.gather(
-            self.complete(context), self.batch_prefix([context] + extended)
-        )
+        Dispatches to `complete` if `context` ends with EOS, otherwise to `prefix`.
 
-        if W_prefix[0] == float("-inf"):
-            raise ValueError(f"Context {context!r} is not in the potential's domain.")
+        Args:
+            context (list): Sequence of tokens to score.
 
-        W = np.zeros(len(self.decode_eos))
-        W[:-1] = W_prefix[1:] - W_prefix[0]
-        W[-1] = w_complete - W_prefix[0]
+        Returns:
+            (float): Log weight of the context, either as a prefix or complete sequence.
+        """
+        return (await self.batch_score([context]))[0]
 
-        return self.make_lazy_weights(W)
+    async def logw_next(self, context):
+        """Compute the weights each token in the vocabulary and the special EOS token given `context`.
 
-    async def logp_next_seq(self, context, extension):
-        return (await self.score(context + extension)) - (await self.prefix(context))
+        The log weight of a token x is computed as:
+        $$
+        w(x \mid \text{context}) = \text{score}(\text{context} + x) - \text{prefix}(\text{context})
+        $$
 
-    async def batch_logp_next(self, contexts):
-        N = len(contexts)
-        V = len(self.decode)
+        Args:
+            context (list): Sequence of tokens to condition on.
 
-        all_extended = [
-            [*context, token] for context in contexts for token in self.decode
-        ]
+        Returns:
+            (LazyWeights): Weights of each token in the vocabulary and EOS.
+        """
+        return (await self.batch_logw_next([context]))[0]
 
-        complete_ws, prefix_ws = await asyncio.gather(
-            self.batch_complete(contexts), self.batch_prefix(contexts + all_extended)
-        )
+    async def logw_next_seq(self, context, extension):
+        """Assess the weight of `extension` given `context`.
 
-        assert (
-            len(complete_ws) == N
-        ), f"Expected {N} complete scores, got {len(complete_ws)}"
-        assert len(prefix_ws) == N * (
-            V + 1
-        ), f"Expected {N * (V + 1)} prefix scores, got {len(prefix_ws)}"
+        `extension` may optionally include the special EOS token at the end.
 
-        context_ws = prefix_ws[:N]
-        extended_ws = prefix_ws[N:]
+        Args:
+            context (list): Sequence of tokens to condition on.
+            extension (list): Sequence of tokens to score.
 
-        logp_nexts = []
-        for n in range(N):
-            if context_ws[n] == float("-inf"):
-                raise ValueError(
-                    f"Context {contexts[n]!r} is not in the potential's domain."
-                )
+        Returns:
+            (LazyWeights): Log weight of `extension` given `context`.
+        """
+        return (await self.batch_logw_next_seq(context, [extension]))[0]
 
-            W = np.zeros(len(self.decode_eos))
-            W[:-1] = extended_ws[n * V : (n + 1) * V] - context_ws[n]  # decode
-            W[-1] = complete_ws[n] - context_ws[n]  # eos
-
-            logp_nexts.append(self.make_lazy_weights(W))
-
-        return logp_nexts
+    ###################
+    # Batched methods #
+    ###################
 
     async def batch_complete(self, contexts):
+        """Batched equivalent to `complete`.
+
+        Assess the weight of each context as a complete sequence of the language.
+
+        Args:
+            contexts (list): List of sequences of tokens.
+
+        Returns:
+            (np.array): Array of log weights for each context.
+        """
+        if not contexts:
+            raise ValueError("Contexts must be non-empty.")
+
         return np.array(
             await asyncio.gather(*[self.complete(context) for context in contexts])
         )
 
     async def batch_prefix(self, contexts):
+        """Batched equivalent to `prefix`.
+
+        Assess the weight of each context as a prefix of the language.
+
+        Args:
+            contexts (list): List of sequences of tokens.
+
+        Returns:
+            (np.array): Array of log weights for each context.
+        """
+        if not contexts:
+            raise ValueError("Contexts must be non-empty.")
+
         return np.array(
             await asyncio.gather(*[self.prefix(context) for context in contexts])
         )
 
     async def batch_score(self, contexts):
-        return np.array(
-            await asyncio.gather(*[self.score(context) for context in contexts])
+        """Batched equivalent to `score`.
+
+        Assess the weight of each context based on EOS-termination.
+
+        Args:
+            contexts (list): List of sequences of tokens.
+
+        Returns:
+            (np.array): Array of log weights for each context.
+        """
+        if not contexts:
+            raise ValueError("Contexts must be non-empty.")
+
+        complete, prefix = [], []
+        complete_indices, prefix_indices = [], []
+
+        for i, context in enumerate(contexts):
+            if context and context[-1] is EOS:
+                complete.append(context[:-1])
+                complete_indices.append(i)
+            else:
+                prefix.append(context)
+                prefix_indices.append(i)
+
+        complete_scores = (
+            await self.batch_complete(complete) if complete else np.array([])
+        )
+        prefix_scores = await self.batch_prefix(prefix) if prefix else np.array([])
+
+        results = np.empty(len(contexts))
+        if complete_scores.size:
+            results[complete_indices] = complete_scores
+        if prefix_scores.size:
+            results[prefix_indices] = prefix_scores
+
+        return results
+
+    async def batch_logw_next(self, contexts):
+        """Batched equivalent to `logw_next`.
+
+        Computes the log weights for each token in the vocabulary and EOS
+        given each context in the batch.
+
+        Args:
+            contexts (list): List of sequences of tokens.
+
+        Returns:
+            (list): List of LazyWeights objects, one for each context.
+
+        Raises:
+            ValueError: If any context has zero weight (log weight of -inf) under `prefix`.
+        """
+        if not contexts:
+            raise ValueError("Contexts must be non-empty.")
+
+        num_contexts = len(contexts)
+        vocab_size = len(self.decode)
+
+        extended_contexts = [[*context, x] for context in contexts for x in self.decode]
+
+        complete_scores, all_prefix_scores = await asyncio.gather(
+            self.batch_complete(contexts),
+            self.batch_prefix(contexts + extended_contexts),
         )
 
-    async def batch_logp_next_seq(self, context, extensions):
+        base_scores = all_prefix_scores[:num_contexts]
+        extension_scores = all_prefix_scores[num_contexts:]
+
+        batch_logws = []
+        for i in range(num_contexts):
+            base_score = base_scores[i]
+            if base_score == float("-inf"):
+                raise ValueError(
+                    f"Context {contexts[i]!r} has weight zero under `prefix`."
+                )
+
+            logws = np.zeros(len(self.decode_eos))
+            start = i * vocab_size
+            logws[:-1] = extension_scores[start : start + vocab_size] - base_score
+            logws[-1] = complete_scores[i] - base_score
+
+            batch_logws.append(self.make_lazy_weights(logws))
+
+        return batch_logws
+
+    async def batch_logw_next_seq(self, context, extensions):
+        """Batched equivalent to `logw_next_seq`.
+
+        Args:
+            context (list): Sequence of tokens to condition on.
+            extensions (list): List of sequences of tokens to score.
+
+        Returns:
+            (np.array): Array of log weights for each extension.
+
+        Raises:
+            ValueError: If context has zero weight (log weight of -inf) under `prefix`.
+        """
+        if not extensions:
+            raise ValueError("Extensions must be non-empty.")
+
         prefix = await self.prefix(context)
         if prefix == float("-inf"):
-            raise ValueError(f"Context {context!r} is not in the potential's support.")
+            raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
+
         scores = await self.batch_score(
-            [context + extension for extension in extensions]
+            [[*context, *extension] for extension in extensions]
         )
         return scores - prefix
 
-    """
-    async def sample(
-        self,
-        n_samples,
-        generator=None,
-        critic=None,
-        resampler=None,
-        context=[],
-        max_tokens=25,
-        draw=sample_dict,
-    ):
-        if not generator:
-            generator = self
-
-        diff = self - generator
-
-        particles = [WeightedSample(list(context)) for _ in range(n_samples)]
-        n_tokens = 0
-        while not all(a.finished for a in particles):
-            import ipdb
-
-            ipdb.set_trace()
-            Ws = await generator.batch_logp_next([a.context for a in particles])
-            for a, W in zip(particles, Ws):
-                Z = logsumexp(W.weights)
-                token = draw(Ws.normalize().materialize())
-                a.context.append(token)
-                a.log_w += Z
-
-            if diff:
-                corrections = diff.batch_score([a.context for a in particles])
-                for a, correction in zip(particles, corrections):
-                    a.log_w += correction
-
-            if critic and resampler:
-                twist_amts = critic.batch_score([a.context for a in particles])
-                for a, twist_amt in zip(particles, twist_amts):
-                    a.twist(twist_amt)
-
-            if resampler:
-                particles = resampler(particles)
-
-            # if transformer: # TODO: for rejuvenation or more complex moves
-            #    particles = transformer(particles)
-
-            n_tokens += 1
-            if n_tokens >= max_tokens:
-                break
-
-        if critic and not resampler:
-            twist_amts = critic.batch_score([a.context for a in particles])
-            for a, twist_amt in zip(particles, twist_amts):
-                a.twist(twist_amt)
-
-        return particles
-    """
+    #############
+    # Utilities #
+    #############
 
     def make_lazy_weights(self, weights, log=True):
+        """Helper method to create a LazyWeights object over the potential's vocabulary and EOS.
+
+        Args:
+            weights (np.array): Array of weights.
+            log (bool, optional): Whether the weights are in log space. Defaults to True.
+
+        Returns:
+            (LazyWeights): LazyWeights object.
+        """
         return LazyWeights(
             weights=weights, encode=self.encode_eos, decode=self.decode_eos, log=log
         )
 
-    ################
-    # Move to util #
-    ################
+    def spawn(self):
+        """
+        Spawn a fresh instance of the potential.
 
-    async def assert_properties(
-        self, context, rtol=1e-3, atol=1e-5, top=None, verbosity=0
-    ):
-        logp_next = await self.logp_next(context)
+        This method is not required by default, but may be implemented by subclasses
+        to support CPU-parallelism using multiprocessing.
+        """
+        raise NotImplementedError(
+            "Potential.spawn() must be implemented by subclasses."
+        )
 
-        context_w = await self.prefix(context)
-        top_logp_next = logp_next.materialize(top=top)
+    async def sample(self, context=None, max_tokens=float("inf"), n_samples=1):
+        """Generate properly weighted samples from the potential.
 
-        extensions = [list(context) + [x] for x in top_logp_next]
-        extension_ws = await self.batch_score(extensions)
+        Args:
+            context (list, optional): Initial context. Defaults to None.
+            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to float("inf").
+            n_samples (int, optional): Number of samples to generate. Defaults to 1.
 
-        errors, valids = [], []
-        for i, token in enumerate(top_logp_next):
-            want = extension_ws[i] - context_w
-            have = top_logp_next[token]
-            is_inf = want == float("-inf") and have == float("-inf")
-            diff = {
-                "token": repr(token),
-                "expected": want,
-                "actual": have,
-                "abs_diff": 0 if is_inf else abs(want - have),
-                "rel_diff": 0 if is_inf else abs((want - have) / want),
-            }
+        Returns:
+            tuple[list[list], np.ndarray]: Tuple of (sequences, log weights), where sequences is a list of
+                token sequences and log weights is an array of corresponding log weights.
 
-            if np.isclose(want, have, rtol=rtol, atol=atol):
-                valids.append(diff)
-            else:
-                errors.append(diff)
+        Raises:
+            ValueError: If n_samples < 1 or max_tokens < 1
+        """
+        if n_samples < 1:
+            raise ValueError("n_samples must be at least 1")
+        if max_tokens < 1:
+            raise ValueError("max_tokens must be at least 1")
 
-        if valids and verbosity > 0:
-            print("\033[92mProperties satisfied for tokens:\033[0m\n")
-            for valid in valids:
-                print(
-                    (
-                        f"Token:    \033[94m{valid['token']}\033[0m\n"
-                        f"Expected: \033[92m{valid['expected']:.6f}\033[0m (score(context + [{valid['token']!r}]) - prefix(context))\n"
-                        f"Actual:   \033[93m{valid['actual']:.6f}\033[0m (logp_next(context)[{valid['token']!r}])\n"
-                        f"Abs Diff: \033[96m{valid['abs_diff']:.6f} <= {atol=}\033[0m\n"
-                        f"Rel Diff: \033[95m{valid['rel_diff']:.6f} <= {rtol=}\033[0m\n\n"
-                    )
-                )
+        context = [] if context is None else list(context)
+        contexts = [context.copy() for _ in range(n_samples)]
+        log_ws = np.zeros(n_samples, dtype=np.float64)
+        active = np.ones(n_samples, dtype=bool)
 
-        if errors:
-            error_msg = (
-                "\033[91mPotential properties not satisfied for tokens:\033[0m\n\n"
-            )
-            for error in errors:
-                error_msg += (
-                    f"Token:    \033[93m{error['token']}\033[0m\n"
-                    f"Expected: \033[92m{error['expected']:.6f}\033[0m (score(context + [{error['token']!r}]) - prefix(context))\n"
-                    f"Actual:   \033[91m{error['actual']:.6f}\033[0m (logp_next(context)[{error['token']!r}])\n"
-                    f"Abs Diff: \033[95m{error['abs_diff']:.6f} > {atol=}\033[0m\n"
-                    f"Rel Diff: \033[95m{error['rel_diff']:.6f} > {rtol=}\033[0m\n\n"
-                )
-            raise AssertionError(error_msg)
+        while np.any(active):
+            active_idxs = np.where(active)[0]
+            logw_nexts = await self.batch_logw_next([contexts[i] for i in active_idxs])
 
+            for i, logw_next in enumerate(logw_nexts):
+                idx = active_idxs[i]
+                W = logw_next.weights
+                Z = logsumexp(W)
+                p_next = np.exp(W - Z)
 
-class eos:
-    """Special sentinel token for end-of-sequence."""
+                # Handle numerical precision issues
+                p_next = p_next / np.sum(p_next)
 
-    def __repr__(self):
-        return "<EOS>"
+                next_token = np.random.choice(self.decode_eos, p=p_next)
+                contexts[idx].append(next_token)
+                log_ws[idx] += Z
 
-    def __radd__(self, other):
-        if isinstance(other, str):
-            return other + "<EOS>"
-        elif isinstance(other, bytes):
-            return other + b"\x00"  # Using null byte as it's rarely used in text
-        elif isinstance(other, (list, tuple)):
-            return type(other)(list(other) + [self])
+                print(contexts[idx], log_ws[idx])
 
+                if next_token is EOS or len(contexts[idx]) >= max_tokens:
+                    active[idx] = False
 
-EOS = eos()
+        return contexts, log_ws
