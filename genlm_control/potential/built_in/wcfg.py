@@ -17,9 +17,9 @@ class WCFG(Potential):
             value will be used.
 
     Methods:
-        complete(context): Computes the log probability of the context under the WCFG.
-        prefix(context): Computes the log prefix probability of the context under the WCFG.
-        logw_next(context): Computes the log probabilities for the next tokens given the context.
+        complete(context): Computes the log weight of the context under the WCFG.
+        prefix(context): Computes the log prefix weight of the context under the WCFG.
+        logw_next(context): Computes the log weights for the next tokens given the context.
         clear_cache(): Clears the internal cache of the grammar model.
     """
 
