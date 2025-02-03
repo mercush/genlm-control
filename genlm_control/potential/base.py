@@ -62,12 +62,12 @@ class Potential(ABC, PotentialOperators):
             self.batch_complete(contexts), self.batch_prefix(contexts + all_extended)
         )
 
-        assert (
-            len(complete_ws) == N
-        ), f"Expected {N} complete scores, got {len(complete_ws)}"
-        assert len(prefix_ws) == N * (
-            V + 1
-        ), f"Expected {N * (V + 1)} prefix scores, got {len(prefix_ws)}"
+        assert len(complete_ws) == N, (
+            f"Expected {N} complete scores, got {len(complete_ws)}"
+        )
+        assert len(prefix_ws) == N * (V + 1), (
+            f"Expected {N * (V + 1)} prefix scores, got {len(prefix_ws)}"
+        )
 
         context_ws = prefix_ws[:N]
         extended_ws = prefix_ws[N:]
