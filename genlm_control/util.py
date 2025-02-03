@@ -3,23 +3,6 @@ from genlm_grammar import Float, Log
 from arsenal.maths import logsumexp
 
 
-def is_byte_list(byte_sequences: list[bytes]) -> bool:
-    """Check if all sequences are single bytes.
-
-    Args:
-        byte_sequences: List of byte sequences to check
-
-    Returns:
-        True if all sequences are single bytes
-    """
-    return all(len(seq) == 1 for seq in byte_sequences)
-
-
-def split_bytes(byte_seq: bytes) -> list[bytes]:  # XXX: needed?
-    """Split a byte sequence into list of single-byte sequences."""
-    return [bytes([b]) for b in byte_seq]
-
-
 class LazyWeights:
     def __init__(self, weights, encode, decode, log=True):
         assert len(weights) == len(decode)
@@ -37,6 +20,12 @@ class LazyWeights:
 
     def __len__(self):
         return len(self.weights)
+
+    def __array__(self):
+        raise NotImplementedError(
+            "LazyWeights cannot be converted to a numpy array. "
+            "If you want to combine multiple LazyWeights, use their weights attribute directly."
+        )
 
     def keys(self):
         return self.decode
