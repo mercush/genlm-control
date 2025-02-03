@@ -85,7 +85,15 @@ class Potential(ABC, PotentialOps, PotentialTests):
         Returns:
             (LazyWeights): Weights of each token in the vocabulary and EOS.
         """
-        return (await self.batch_logw_next([context]))[0]
+        ctx_log_w = await self.prefix(context)
+
+        if ctx_log_w == float("-inf"):
+            raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
+
+        scores = await self.batch_score([[*context, x] for x in self.decode_eos])
+        logws = scores - ctx_log_w
+
+        return self.make_lazy_weights(logws)
 
     async def logw_next_seq(self, context, extension):
         """Assess the weight of `extension` given `context`.
