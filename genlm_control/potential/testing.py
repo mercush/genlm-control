@@ -244,10 +244,4 @@ class PotentialTests:
             if token
             else ""
         )
-        return (
-            f"{token_str}"
-            f"{want_str}\n"
-            f"{have_str}\n"
-            f"{abs_diff_str}\n"
-            f"{rel_diff_str}\n\n"
-        )
+        return f"{token_str}{want_str}\n{have_str}\n{abs_diff_str}\n{rel_diff_str}\n\n"
