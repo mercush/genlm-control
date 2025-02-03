@@ -26,10 +26,10 @@ class Product(Potential):
         )
         return w1 + w2
 
-    async def logp_next_seq(self, context, extension):
+    async def logw_next_seq(self, context, extension):
         W1, W2 = await asyncio.gather(
-            self.p1.logp_next_seq(context, extension),
-            self.p2.logp_next_seq(context, extension),
+            self.p1.logw_next_seq(context, extension),
+            self.p2.logw_next_seq(context, extension),
         )
         return W1 + W2
 
@@ -45,24 +45,24 @@ class Product(Potential):
         )
         return W1 + W2
 
-    async def batch_logp_next_seq(self, context, extensions):
+    async def batch_logw_next_seq(self, context, extensions):
         W1, W2 = await asyncio.gather(
-            self.p1.batch_logp_next_seq(context, extensions),
-            self.p2.batch_logp_next_seq(context, extensions),
+            self.p1.batch_logw_next_seq(context, extensions),
+            self.p2.batch_logw_next_seq(context, extensions),
         )
         return W1 + W2
 
-    async def logp_next(self, context):
+    async def logw_next(self, context):
         W1, W2 = await asyncio.gather(
-            self.p1.logp_next(context), self.p2.logp_next(context)
+            self.p1.logw_next(context), self.p2.logw_next(context)
         )
         return self.make_lazy_weights(
             W1.weights[self.v1_idxs] + W2.weights[self.v2_idxs]
         )
 
-    async def batch_logp_next(self, contexts):
+    async def batch_logw_next(self, contexts):
         Ws1, Ws2 = await asyncio.gather(
-            self.p1.batch_logp_next(contexts), self.p2.batch_logp_next(contexts)
+            self.p1.batch_logw_next(contexts), self.p2.batch_logw_next(contexts)
         )
         return [
             self.make_lazy_weights(
