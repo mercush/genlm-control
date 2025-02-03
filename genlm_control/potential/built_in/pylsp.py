@@ -71,6 +71,9 @@ class PythonLSP(Potential):
     def __repr__(self):
         return "PythonLSP()"
 
+    def spawn(self):
+        return PythonLSP()
+
 
 class DiagnosticCapture:
     def __init__(self):

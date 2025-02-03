@@ -64,6 +64,8 @@ class WFSA(Potential):
         return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
+        if not context:
+            return 0
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
         w = sum(curr[i] * bkwd[i] for i in curr)
@@ -110,6 +112,10 @@ class WFSA(Potential):
 
     def __repr__(self):
         return f"WFSA(wfsa={self.wfsa!r})"
+
+    def spawn(self):
+        cls = type(self)
+        return cls(wfsa=self.wfsa)
 
 
 class BoolFSA(WFSA):

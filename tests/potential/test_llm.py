@@ -35,7 +35,12 @@ async def test_backend(backend):
     want = await reference_scorer(llm, context, eos=True)
     assert np.isclose(have, want), [have, want]
 
-    await llm.assert_properties(context, top=10, verbosity=1)
+    await llm.assert_logw_next_consistency(context, verbosity=1, top=10)
+    await llm.assert_autoreg_fact(context, verbosity=1)
+
+    contexts = [context, llm.tokenize(" earth, how"), context]
+    # extensions = [llm.tokenize(" . My name is John Doe."), llm.tokenize(" . I live in New York.")]
+    await llm.assert_batch_consistency(contexts, verbosity=1)
 
 
 async def reference_scorer(llm, context, eos=False):
