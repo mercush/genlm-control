@@ -148,10 +148,14 @@ class PromptedLLM(Potential):
         """Encode a list of byte tokens to a list of token IDs."""
         return [self.token_maps.encode[x] for x in tokens]
 
+    def decode_tokens(self, ids):
+        """Decode a list of token IDs to a list of byte tokens."""
+        return [self.token_maps.decode[x] for x in ids]
+
     async def log_probability(self, context):
         """Compute the log probability of the context given the prompt."""
         if not context:
-            raise ValueError("Context must be non-empty.")
+            return 0
 
         context_ids = self.encode_tokens(context)
         prefixes = [self.prompt_ids + context_ids[:i] for i in range(len(context_ids))]
@@ -169,34 +173,34 @@ class PromptedLLM(Potential):
 
     async def complete(self, context):
         logp_context = await self.log_probability(context)
-        logp_next = await self.model.next_token_logprobs(
+        logw_next = await self.model.next_token_logprobs(
             self.prompt_ids + self.encode_tokens(context)
         )
-        logp_eos = torch.logsumexp(logp_next[self.token_maps.eos_idxs], dim=0).item()
+        logp_eos = torch.logsumexp(logw_next[self.token_maps.eos_idxs], dim=0).item()
         return logp_context + logp_eos
 
-    def _process_logp_next(self, logp_next):
+    def _process_logw_next(self, logw_next):
         """Process the log probabilities for the next tokens.
 
         This function rearranges the log probabilities such that the end-of-sequence (EOS) token's log probability
         is moved to the end of the array. This is necessary for downstream code that assumes the EOS token is at the end.
 
         Args:
-            logp_next (np.array): The log probabilities for the next tokens.
+            logw_next (np.array): The log probabilities for the next tokens.
 
         Returns:
             (LazyWeights|np.array): Processed log probabilities for the next tokens.
         """
         # This is ugly, but it's useful for all potentials to adhere to the convention
         # of keeping the EOS token at the end of the weights array.
-        _logp_next = np.full(len(self.decode) + 1, -np.inf, dtype=logp_next.dtype)
-        _logp_next[: len(self.decode)] = logp_next[
-            ~np.isin(np.arange(len(logp_next)), self.token_maps.eos_idxs)
+        _logw_next = np.full(len(self.decode) + 1, -np.inf, dtype=logw_next.dtype)
+        _logw_next[: len(self.decode)] = logw_next[
+            ~np.isin(np.arange(len(logw_next)), self.token_maps.eos_idxs)
         ]
-        _logp_next[-1] = logsumexp(logp_next[self.token_maps.eos_idxs])
-        return self.make_lazy_weights(_logp_next)
+        _logw_next[-1] = logsumexp(logw_next[self.token_maps.eos_idxs])
+        return self.make_lazy_weights(_logw_next)
 
-    async def logp_next(self, context):
+    async def logw_next(self, context):
         """Get log probabilities for next tokens given `self.prompt` + `context`.
 
         Args:
@@ -204,12 +208,12 @@ class PromptedLLM(Potential):
         Returns:
             (LazyWeights): Log probabilities for next tokens
         """
-        logp_next = await self.model.next_token_logprobs(
+        logw_next = await self.model.next_token_logprobs(
             self.prompt_ids + self.encode_tokens(context)
         )
-        return self._process_logp_next(logp_next.float().cpu().numpy())
+        return self._process_logw_next(logw_next.float().cpu().numpy())
 
-    async def batch_logp_next(self, contexts):
+    async def batch_logw_next(self, contexts):
         """Get log probabilities for next tokens given `self.prompt` + `context`, for each context.
 
         Args:
@@ -218,15 +222,18 @@ class PromptedLLM(Potential):
         Returns:
             (List[LazyWeights]): Log probabilities for next tokens for each context
         """
-        logp_nexts = await self.model.batch_next_token_logprobs(
+        logw_nexts = await self.model.batch_next_token_logprobs(
             [self.prompt_ids + self.encode_tokens(context) for context in contexts]
         )
-        return np.array(
-            [
-                self._process_logp_next(logp_next)
-                for logp_next in logp_nexts.float().cpu().numpy()
-            ]
-        )
+        return [
+            self._process_logw_next(logw_next)
+            for logw_next in logw_nexts.float().cpu().numpy()
+        ]
 
     def __repr__(self):
         return f"PromptedLLM(prompt={self.prompt!r})"
+
+    def spawn(self):
+        return PromptedLLM(
+            self.model, prompt=self.prompt, eos_tokens=self.token_maps.eos_idxs
+        )
