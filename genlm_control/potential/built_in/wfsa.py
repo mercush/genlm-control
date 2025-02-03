@@ -64,14 +64,14 @@ class WFSA(Potential):
         return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
-        if not context:
+        if not context:  # XXX ugh
             return 0
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
         w = sum(curr[i] * bkwd[i] for i in curr)
         return np.log(w) if w > 0 else float("-inf")
 
-    async def logp_next(self, context):
+    async def logw_next(self, context):
         """Returns next token log probabilities after consuming context.
 
         Args:
@@ -82,9 +82,13 @@ class WFSA(Potential):
         """
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
-        ctx_w = sum(curr[i] * bkwd[i] for i in curr)
 
-        if not ctx_w:
+        if context:
+            ctx_w = sum(curr[i] * bkwd[i] for i in curr)
+        else:
+            ctx_w = 1  # XXX ugh
+
+        if ctx_w == 0:
             raise ValueError(f"Context {context!r} has zero weight.")
 
         log_ctx_w = np.log(ctx_w)
@@ -133,13 +137,24 @@ class BoolFSA(WFSA):
             return 0
         return float("-inf")
 
-    async def logp_next(self, context):
-        logp_next = await super().logp_next(context)
-        return logp_next.spawn(
+    async def logw_next(self, context):
+        logw_next = await super().logw_next(context)
+        return logw_next.spawn(
             new_weights=np.where(
-                logp_next.weights > float("-inf"), 0, logp_next.weights
+                logw_next.weights > float("-inf"), 0, logw_next.weights
             )
         )
+
+    async def batch_logw_next(self, contexts):
+        logw_nexts = await super().batch_logw_next(contexts)
+        return [
+            logw_next.spawn(
+                new_weights=np.where(
+                    logw_next.weights > float("-inf"), 0, logw_next.weights
+                )
+            )
+            for logw_next in logw_nexts
+        ]
 
     def __repr__(self):
         return f"BoolFSA(wfsa={self.wfsa!r})"
