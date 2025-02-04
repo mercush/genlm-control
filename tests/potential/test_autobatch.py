@@ -53,7 +53,7 @@ async def test_correctness():
         *(potential.logw_next_seq([b"h"], seq) for seq in sequences)
     )
     have = await asyncio.gather(
-        *(autobatched.logw_next_seq([b""], seq) for seq in sequences)
+        *(autobatched.logw_next_seq([b"h"], seq) for seq in sequences)
     )
     assert want == have, [want, have]
 
