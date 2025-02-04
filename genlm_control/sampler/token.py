@@ -144,13 +144,13 @@ class IncrementalTokenSampler(SetTokenSampler):
             for a, c in children_curr.items():
                 W_p_bytes[a] = mass[c] / mass_curr
 
-            W_guide_bytes = (
-                (await self.guide.logw_next(self.f(context) + path)).exp().materialize()
-            )
-
             if None in W_p_bytes:
                 log_m = np.log(mass[children_curr[None]])
                 Ws[self.p.encode[self.g(path)]] = log_m + g_logw - inc_logp
+
+            W_guide_bytes = (
+                (await self.guide.logw_next(self.f(context) + path)).exp().materialize()
+            )
 
             W_next = (W_p_bytes * W_guide_bytes).trim()
 
@@ -181,7 +181,7 @@ class IncrementalTokenSampler(SetTokenSampler):
         inc_logps = np.zeros(batch_size)
         g_logws = np.zeros(batch_size)
 
-        batch_Ws = np.full((batch_size, len(self.decode)), float("-inf"))
+        batch_Ws = np.full((batch_size, len(self.decode_eos)), float("-inf"))
         active = np.ones(batch_size, dtype=bool)
 
         while np.any(active):

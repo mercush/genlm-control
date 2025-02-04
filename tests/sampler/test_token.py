@@ -26,9 +26,7 @@ async def test_direct():
     # haves = await sampler.batch_trace_swor([[], ['a']])
     # wants = await p.batch_logw_next([[], ['a']])
     # for have, want in zip(haves, wants):
-
-
-#     have.assert_equal_unordered(want)
+    #     have.assert_equal_unordered(want)
 
 
 @pytest.mark.asyncio
