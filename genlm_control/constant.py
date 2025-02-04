@@ -12,5 +12,8 @@ class EndOfSequence:
         elif isinstance(other, (list, tuple)):
             return type(other)(list(other) + [self])
 
+    def __iter__(self):
+        return iter([self])
+
 
 EOS = EndOfSequence()
