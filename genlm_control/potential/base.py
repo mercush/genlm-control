@@ -12,7 +12,7 @@ from genlm_control.potential.testing import PotentialTests
 class Potential(ABC, PotentialOps, PotentialTests):
     """Abstract base class for potentials.
 
-    A Potential represents a weighted language over a vocabulary. It must minimally
+    A Potential represents a weighted language over a vocabulary. Subclasses must minimally
     implement methods to assess the weight of a sequence as a member of the language (`complete`) and
     as a prefix of the language (`prefix`).
 
@@ -61,7 +61,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def score(self, context):
         """Assess the weight of `context` based on EOS-termination.
 
-        Dispatches to `complete` if `context` ends with EOS, otherwise to `prefix`.
+        Dispatches to `complete` if `context` ends with `EOS`, otherwise to `prefix`.
 
         Args:
             context (list): Sequence of tokens to score.
