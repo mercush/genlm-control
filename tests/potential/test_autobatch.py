@@ -22,11 +22,11 @@ class MockPotential(Potential):
 
     async def batch_complete(self, contexts):
         time.sleep(self.delay)  # Single delay for batch
-        return [np.log(len(context)) for context in contexts]
+        return np.array([np.log(len(context)) for context in contexts])
 
     async def batch_prefix(self, contexts):
         time.sleep(self.delay)  # Single delay for batch
-        return [np.log(len(context) / 2) for context in contexts]
+        return np.array([np.log(len(context) / 2) for context in contexts])
 
 
 @pytest.mark.asyncio
@@ -61,6 +61,38 @@ async def test_correctness():
     haves = await asyncio.gather(*(autobatched.logw_next(seq) for seq in sequences))
     for have, want in zip(haves, wants):
         have.assert_equal(want)
+
+    await autobatched.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_batch_methods():
+    """Test that batch methods return expected results (they shouldn't change)"""
+    potential = MockPotential()
+    autobatched = potential.to_autobatched()
+
+    sequences = [b"hello", b"world", b"test", b"batch", b"foo"]
+
+    want_complete = await potential.batch_complete(sequences)
+    have_complete = await autobatched.batch_complete(sequences)
+    np.testing.assert_array_equal(want_complete, have_complete)
+
+    want_prefix = await potential.batch_prefix(sequences)
+    have_prefix = await autobatched.batch_prefix(sequences)
+    np.testing.assert_array_equal(want_prefix, have_prefix)
+
+    want_score = await potential.batch_score(sequences)
+    have_score = await autobatched.batch_score(sequences)
+    np.testing.assert_array_equal(want_score, have_score)
+
+    want_logw_next = await potential.batch_logw_next(sequences)
+    have_logw_next = await autobatched.batch_logw_next(sequences)
+    for have, want in zip(have_logw_next, want_logw_next):
+        have.assert_equal(want)
+
+    want_logw_next_seq = await potential.batch_logw_next_seq([b"h"], sequences)
+    have_logw_next_seq = await autobatched.batch_logw_next_seq([b"h"], sequences)
+    np.testing.assert_array_equal(want_logw_next_seq, have_logw_next_seq)
 
     await autobatched.cleanup()
 
