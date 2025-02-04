@@ -110,3 +110,9 @@ class MPPotential(Potential):
             self.pool.terminate()
             self.pool.join()
             self.pool = None
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.potential!r})"
+
+    def spawn(self):
+        raise ValueError("MPPotentials are not spawnable.")

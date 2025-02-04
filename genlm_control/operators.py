@@ -4,8 +4,8 @@ class PotentialOps:
     1. Composition (*): Take the product of two potentials.\n
     2. Lifting (lift): Lift the potential to operate on another potential's vocabulary.\n
     3. Auto-batching (to_auto_batched): Create a version that automatically batches concurrent requests to the instance methods.\n
-    4. BPU Parallelization:
-        * (to_multiprocess): Create a version that parallelizes batch operations over multiple processes.\n
+    4. Parallelization (to_multiprocess): Create a version that parallelizes batch operations over multiple processes.\n
+    5. Autobatching (autobatched): Create a version that automatically batches concurrent requests to the instance methods.\n
     """
 
     def __mul__(self, other):
@@ -51,12 +51,16 @@ class PotentialOps:
             return
         raise NotImplementedError()
 
-    # def to_multithread(self, n_threads=2):
-    #    """Create a new potential instance that parallelizes batch operations
-    #    using multithreading.
-    #     """
-    #    from genlm_control.potential.multi_thread import ThreadedPotential
-    #    return ThreadedPotential(self, num_workers=n_threads)
+    def to_autobatched(self):
+        """Create a new potential instance that automatically batches concurrent requests to the instance methods.
+
+        Returns:
+            (AutoBatchedPotential): A new potential instance that wraps the current potential and
+            automatically batches concurrent requests to the instance methods.
+        """
+        from genlm_control.potential.autobatch import AutoBatchedPotential
+
+        return AutoBatchedPotential(self)
 
     def to_multiprocess(self, num_workers=2, spawn_args=None):
         """Create a new potential instance that parallelizes batch operations
@@ -67,7 +71,7 @@ class PotentialOps:
             spawn_args (tuple): The positional arguments to pass to the potential's `spawn` method.
 
         Returns:
-            (MPPotential) A new instance of the potential that uses multiprocessing to parallelize
+            (MPPotential) A new potential instance that wraps the current potential and uses multiprocessing to parallelize
             batch operations.
 
         Note:

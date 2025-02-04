@@ -180,9 +180,9 @@ class Potential(ABC, PotentialOps, PotentialTests):
         prefix_scores = await self.batch_prefix(prefix) if prefix else np.array([])
 
         results = np.empty(len(contexts))
-        if complete_scores.size:
+        if len(complete_scores) > 0:
             results[complete_indices] = complete_scores
-        if prefix_scores.size:
+        if len(prefix_scores) > 0:
             results[prefix_indices] = prefix_scores
 
         return results
