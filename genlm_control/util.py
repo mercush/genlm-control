@@ -45,14 +45,14 @@ class LazyWeights:
 
     def __mul__(self, other):
         if self.is_log:
-            assert self.other.is_log
+            assert other.is_log
             return self.spawn(self.weights + other.weights)
         else:
             return self.spawn(self.weights * other.weights)
 
     def __add__(self, other):
         if self.is_log:
-            assert self.other.is_log
+            assert other.is_log
             max_ab = np.maximum(self.weights, other.weights)
             weights = max_ab + np.log1p(np.exp(-np.abs(self.weights - other.weights)))
             return self.spawn(weights)
@@ -105,8 +105,7 @@ class LazyWeights:
         np.testing.assert_allclose(self.weights, other.weights, **kwargs)
 
     def assert_equal_unordered(self, other, **kwargs):
-        assert set(self.decode) - set(other.decode) == set(), "self has extra keys"
-        assert set(other.decode) - set(self.decode) == set(), "other has extra keys"
+        assert set(self.decode) == set(other.decode), "keys do not match"
 
         for x in self.decode:
             have, want = self[x], other[x]
