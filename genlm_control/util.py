@@ -125,3 +125,13 @@ def load_trie(V, backend=None, **kwargs):
         from genlm_backend.trie import TokenCharacterTrie
 
         return TokenCharacterTrie(V, **kwargs)
+
+
+def sample_categorical(pvals):
+    # Helper function to sample from a categorical distribution
+    # Much faster than np.random.multinomial for pvals with many zeros
+    # TODO: test
+    nonzero_idx = pvals.nonzero()[0]
+    nonzero_probs = pvals[nonzero_idx]
+    chosen_idx = nonzero_idx[np.random.multinomial(1, pvals=nonzero_probs).argmax()]
+    return chosen_idx

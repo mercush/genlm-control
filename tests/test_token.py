@@ -4,7 +4,7 @@ from itertools import chain
 from arsenal.maths import logsumexp
 from tqdm import tqdm
 
-from genlm_control.sampler.token import TokenSampler, IncrementalTokenSampler
+from genlm_control.token_sampler import DirectTokenSampler, IncrementalTokenSampler
 from genlm_control.potential.base import Potential
 from genlm_control.potential.built_in import BoolFSA
 
@@ -14,7 +14,8 @@ from genlm_control.potential.built_in import BoolFSA
 
 # For non-batched methods, we use sampling without replacement
 # to compute E[wf(x)], where (x,w) ~ sampler, exactly. This then
-# allows us to check that E[wf(x)] = \sum_x p(x)f(x).
+# allows us to check that E[wf(x)] = \sum_x p(x)f(x)
+# for f = delta(x,x') for all x' in the vocab.
 
 # For batched methods, we use a monte carlo estimate to compute
 # E[wf(x)] for each context, and check that this
@@ -44,7 +45,7 @@ async def batch_monte_carlo_estimate(sampler, contexts, N):
 @pytest.mark.asyncio
 async def test_direct():
     p = UniformPotential(["a", "ac", "acc", "b", "bc", "c"])
-    sampler = TokenSampler(p)
+    sampler = DirectTokenSampler(p)
 
     have = await sampler.trace_swor([])
     want = await p.logw_next([])
@@ -63,10 +64,14 @@ async def test_incremental():
     p = UniformPotential(["a", "ac", "acc", "b", "bc", "c"])
     guide = BoolFSA.from_regex(r"(a|b)c+", to_bytes=False)
 
-    sampler = IncrementalTokenSampler(
-        p, guide, f=lambda x: list(chain(*x)), g=lambda x: "".join(x)
-    )
-    product = p * guide.lift(p)
+    def f(x):
+        return list(chain(*x))
+
+    def g(x):
+        return "".join(x)
+
+    sampler = IncrementalTokenSampler(p, guide, f=f, g=g)
+    product = sampler.target
 
     have = await sampler.trace_swor([])
     want = await product.logw_next([])
