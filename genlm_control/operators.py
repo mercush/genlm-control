@@ -5,7 +5,6 @@ class PotentialOps:
     2. Lifting (lift): Lift the potential to operate on another potential's vocabulary.\n
     3. Auto-batching (to_auto_batched): Create a version that automatically batches concurrent requests to the instance methods.\n
     4. Parallelization (to_multiprocess): Create a version that parallelizes batch operations over multiple processes.\n
-    5. Autobatching (autobatched): Create a version that automatically batches concurrent requests to the instance methods.\n
     """
 
     def __mul__(self, other):
@@ -23,7 +22,7 @@ class PotentialOps:
 
         return Product(self, other)
 
-    def lift(self, other):
+    def lift(self, other, f, g):
         """Lift the current potential to operate on the vocabulary of another potential.
 
         Args:
@@ -34,22 +33,7 @@ class PotentialOps:
         """
         from genlm_control.potential.lifted import Lifted
 
-        return Lifted(self, other.decode)
-
-    def __sub__(self, other, have=None):
-        # TODO: Implement this.
-        """Compute the reweighting factor which reweights samples from `other` to samples from `self`.
-
-        Args:
-            other (Potential): The potential whose samples will be reweighted to samples from `self`.
-            have (Potential, optional):
-
-        Returns:
-            (Reweight): A Reweight instance that reweights samples from `other` to samples from `self`.
-        """
-        if self is other:
-            return
-        raise NotImplementedError()
+        return Lifted(self, other.decode, f=f, g=g)
 
     def to_autobatched(self):
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.
