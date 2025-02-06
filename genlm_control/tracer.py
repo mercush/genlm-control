@@ -5,7 +5,6 @@ from arsenal.maths import sample
 from graphviz import Digraph
 
 from genlm_grammar import Float
-from genlm_grammar.util import format_table
 
 import numpy as np
 
