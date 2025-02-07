@@ -8,10 +8,20 @@ class Product(Potential):
     def __init__(self, p1, p2):
         self.p1 = p1
         self.p2 = p2
+
+        if self.p1.token_type == self.p2.token_type:
+            self.token_type = self.p1.token_type
+        else:
+            raise ValueError(
+                "Potentials in product must have the same token type. "
+                f"Got {self.p1.token_type} and {self.p2.token_type}."
+            )
+
         common_vocab = list(set(p1.decode) & set(p2.decode))
         if not common_vocab:
             raise ValueError("Potentials in product must share a common vocabulary")
-        super().__init__(common_vocab)
+        super().__init__(common_vocab, token_type=self.token_type)
+
         # For fast products of weights
         self.v1_idxs = [p1.encode_eos[token] for token in self.decode_eos]
         self.v2_idxs = [p2.encode_eos[token] for token in self.decode_eos]
