@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from collections.abc import Sequence as SequenceABC
 
+# This module is likely overkill.
+
 
 @dataclass
 class TokenType:
@@ -10,7 +12,7 @@ class TokenType:
         """Check if a value matches this type"""
         raise NotImplementedError
 
-    def is_iterable_of(self, element_type: "TokenType") -> bool:
+    def is_iterable_of(self, element_type):
         """Check if this type can be interpreted as an iterable of element_type.
 
         Args:
@@ -23,7 +25,7 @@ class TokenType:
             True
         """
         if isinstance(self, Sequence):
-            return self.element_type is element_type
+            return self.element_type == element_type
 
         if isinstance(self, Atomic):
             # Special cases for built-in iterables
@@ -85,9 +87,7 @@ def infer_type(value):
     if isinstance(value, SequenceABC) and not isinstance(value, (str, bytes)):
         if not value:
             raise ValueError("Cannot infer type from empty sequence")
-        # Recursively infer type of first element
         element_type = infer_type(value[0])
-        # Verify all elements match this type
         if not all(element_type.check(x) for x in value):
             raise ValueError("Inconsistent types in sequence")
         return Sequence(element_type)
@@ -124,13 +124,25 @@ def infer_vocabulary_type(vocabulary):
     return token_type
 
 
-def infer_transformations(source_type, target_type):
-    """Infer the transformations required to convert source to target."""
-    # Same types - use identity functions
+def infer_token_transformations(source_type, target_type):
+    """Infer the transformations required to convert tokens of source_type to tokens of target_type.
+
+    Args:
+        source_type (TokenType): The type of the source value
+        target_type (TokenType): The type of the target value
+
+    Returns:
+        Tuple of two functions:
+            - The first function converts elements of type `source_type` to elements of type `target_type`
+            - The second function converts elements of type `target_type` to elements of type `source_type`
+
+    Raises:
+        TypeError: If no transformations can be inferred
+    """
     if source_type == target_type:
         return lambda x: x, lambda x: x
 
-    # Handle Sequence -> Sequence conversions
+    # Sequence -> Sequence
     if isinstance(source_type, Sequence) and isinstance(target_type, Sequence):
         s_elem_type = source_type.element_type
         t_elem_type = target_type.element_type
@@ -148,13 +160,13 @@ def infer_transformations(source_type, target_type):
             )
 
         # Recursive case for nested sequences
-        f_elem, g_elem = infer_transformations(s_elem_type, t_elem_type)
+        f_elem, g_elem = infer_token_transformations(s_elem_type, t_elem_type)
         return (
             lambda seq: [f_elem(x) for x in seq],
             lambda seq: [g_elem(x) for x in seq],
         )
 
-    # Handle Atomic -> Atomic conversions
+    # Atomic -> Atomic
     if isinstance(source_type, Atomic) and isinstance(target_type, Atomic):
         s_type = source_type.type
         t_type = target_type.type
@@ -172,12 +184,11 @@ def infer_transformations(source_type, target_type):
                 lambda x: x.encode(errors="replace"),
             )
 
-        # Direct type conversions for basic types
-        basic_types = (str, int, bool, float)
+        basic_types = (str, int, float, bool)
         if t_type in basic_types and s_type in basic_types:
             return lambda x: t_type(x), lambda x: s_type(x)
 
-    # Handle Sequence -> Atomic conversions
+    # Sequence -> Atomic
     if isinstance(source_type, Sequence) and isinstance(target_type, Atomic):
         s_elem_type = source_type.element_type
         t_type = target_type.type
@@ -198,7 +209,7 @@ def infer_transformations(source_type, target_type):
         ):
             return lambda x: bytes(x), lambda x: list(x)
 
-    # Handle Atomic -> Sequence conversions
+    # Atomic -> Sequence
     if isinstance(source_type, Atomic) and isinstance(target_type, Sequence):
         s_type = source_type.type
         t_elem_type = target_type.element_type
@@ -226,3 +237,21 @@ def infer_transformations(source_type, target_type):
     raise TypeError(
         f"Cannot infer transformations between {source_type} and {target_type}"
     )
+
+
+def infer_sequence_transformation(source_type, target_type):
+    """Infer transformation for converting sequences of source_type to sequences of target_type.
+
+    Args:
+        source_type (TokenType): The type of source elements
+        target_type (TokenType): The type of target elements
+
+    Returns:
+        A function that converts sequences of source_type to sequences of target_type.
+    """
+    element_to_target_seq, _ = infer_token_transformations(
+        source_type, Sequence(target_type)
+    )
+
+    # Apply the transformation to each element in the sequence and flatten the result
+    return lambda seq: [y for x in seq for y in element_to_target_seq(x)]
