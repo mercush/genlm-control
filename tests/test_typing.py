@@ -153,3 +153,20 @@ def test_edge_cases():
     assert g([]) == []
 
     check_roundtrip(Atomic(str), Atomic(bytes), "Hello 世界")
+
+
+def test_is_iterable_of():
+    assert Sequence(Atomic(int)).is_iterable_of(Atomic(int))
+    assert Sequence(Atomic(str)).is_iterable_of(Atomic(str))
+    assert not Sequence(Atomic(int)).is_iterable_of(Atomic(str))
+
+    assert Atomic(bytes).is_iterable_of(Atomic(int))
+    assert Atomic(str).is_iterable_of(Atomic(str))
+
+    assert not Atomic(int).is_iterable_of(Atomic(int))
+    assert not Atomic(bytes).is_iterable_of(Atomic(str))
+    assert not Atomic(str).is_iterable_of(Atomic(int))
+
+    nested_seq = Sequence(Sequence(Atomic(int)))
+    assert nested_seq.is_iterable_of(Sequence(Atomic(int)))
+    assert not nested_seq.is_iterable_of(Atomic(int))

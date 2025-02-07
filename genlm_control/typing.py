@@ -10,6 +10,38 @@ class TokenType:
         """Check if a value matches this type"""
         raise NotImplementedError
 
+    def is_iterable_of(self, element_type: "TokenType") -> bool:
+        """Check if this type can be interpreted as an iterable of element_type.
+
+        Args:
+            element_type: The type to check if this is an iterable of
+
+        Examples:
+            >>> Sequence(Atomic(int)).is_iterable_of(Atomic(int))
+            True
+            >>> Atomic(bytes).is_iterable_of(Atomic(int))
+            True
+        """
+        if isinstance(self, Sequence):
+            return self.element_type is element_type
+
+        if isinstance(self, Atomic):
+            # Special cases for built-in iterables
+            if (
+                self.type is bytes
+                and isinstance(element_type, Atomic)
+                and element_type.type is int
+            ):
+                return True
+            if (
+                self.type is str
+                and isinstance(element_type, Atomic)
+                and element_type.type is str
+            ):
+                return True
+
+        return False
+
 
 @dataclass
 class Atomic(TokenType):
