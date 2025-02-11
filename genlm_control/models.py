@@ -13,11 +13,17 @@ class SequenceSampler(Model):
         self.max_tokens = max_tokens
 
         if critic:
-            self.critic = Critic(critic)
+            self.twister = Twist(critic)
+            self.target = generator.target * critic
         else:
-            self.critic = None
+            self.twister = None
+            self.target = generator.target
 
         self.sync_fn = sync_fn or (lambda x: True)
+
+    async def start(self):
+        # Init weight with empty sequence weight under target.
+        self.score(await self.target.prefix([]))
 
     async def step(self):
         await self.proposal(self)
@@ -25,9 +31,9 @@ class SequenceSampler(Model):
         while not self.sync_fn(self.context):
             await self.proposal(self)
 
-        if self.critic:
+        if self.twister:
             self.untwist()
-            await self.critic(self)
+            await self.twister(self)
 
         self.max_tokens -= 1
         if self.max_tokens == 0 or self.context[-1] is EOS:
@@ -35,12 +41,12 @@ class SequenceSampler(Model):
             return
 
     def immutable_properties(self):
-        return set(["proposal", "twist"])
+        return set(["proposal", "twister"])
 
     async def cleanup(self):
         await self.proposal.cleanup()
-        if self.critic:
-            await self.critic.cleanup()
+        if self.twister:
+            await self.twister.cleanup()
 
 
 class BatchSubModel:
@@ -97,7 +103,7 @@ class BatchSubModel:
                 raise
 
     async def cleanup(self):
-        """Async cleanup - preferred method"""
+        """Async cleanup. Preferred method over destroy."""
         if self.task and not self.task.done():
             self.task.cancel()
             try:
@@ -107,6 +113,10 @@ class BatchSubModel:
             self.task = None
 
     def destroy(self):
+        """Destroy the background loop.
+
+        Use async cleanup instead of this method when possible.
+        """
         if self.task:
             self.task.cancel()
             self.task = None
@@ -119,20 +129,20 @@ class BatchSubModel:
 
 
 class Proposal(BatchSubModel):
-    def __init__(self, p):
-        self.p = p
+    def __init__(self, token_sampler):
+        self.token_sampler = token_sampler
         super().__init__()
 
     async def batch_forward(self, models):
         contexts = [model.context for model in models]
-        tokens, ws, _ = await self.p.batch_sample_token(contexts)
+        tokens, ws, _ = await self.token_sampler.batch_sample_token(contexts)
         assert len(tokens) == len(models), f"{len(tokens)} != {len(models)}"
         for token, log_w, model in zip(tokens, ws, models):
             model.context.append(token)
             model.score(log_w)
 
 
-class Critic(BatchSubModel):
+class Twist(BatchSubModel):
     def __init__(self, p):
         self.p = p
         super().__init__()
