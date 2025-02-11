@@ -1,6 +1,6 @@
 import asyncio
 import numpy as np
-from multiprocessing import Pool
+from concurrent.futures import ProcessPoolExecutor
 from genlm_control.potential.base import Potential
 
 
@@ -8,13 +8,14 @@ class MPPotential(Potential):
     """A Potential that adds parallel processing capabilities to any base Potential implementation."""
 
     def __init__(self, potential_factory, factory_args, num_workers=2):
-        self.pool = Pool(
-            num_workers,
+        self.num_workers = num_workers
+        self.executor = ProcessPoolExecutor(
+            max_workers=num_workers,
             initializer=self._init_worker,
             initargs=(potential_factory, factory_args),
         )
-        # maybe TODO: use shared memory to pass the weights to the main process
-        decode = self.pool.apply(self._get_decode)
+        # Get decode from one of the workers
+        decode = self.executor.submit(self._get_decode).result()
         super().__init__(decode)
 
     @staticmethod
@@ -55,39 +56,29 @@ class MPPotential(Potential):
             _worker_potential.logw_next_seq(context, extension)
         )
 
-    async def _run_in_pool(self, func, *args):
-        loop = asyncio.get_running_loop()
-        future = asyncio.Future()
-
-        def _callback(result):
-            loop.call_soon_threadsafe(future.set_result, result)
-
-        def _error_callback(exc):
-            loop.call_soon_threadsafe(future.set_exception, exc)
-
-        self.pool.apply_async(
-            func, args, callback=_callback, error_callback=_error_callback
-        )
-
-        return await future
+    async def _run_in_executor(self, func, *args):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self.executor, func, *args)
 
     async def logw_next(self, context):
-        result = await self._run_in_pool(self._worker_logw_next, context)
+        result = await self._run_in_executor(self._worker_logw_next, context)
         return self.make_lazy_weights(result)
 
     async def prefix(self, context):
-        return await self._run_in_pool(self._worker_prefix, context)
+        return await self._run_in_executor(self._worker_prefix, context)
 
     async def complete(self, context):
-        return await self._run_in_pool(self._worker_complete, context)
+        return await self._run_in_executor(self._worker_complete, context)
 
     async def logw_next_seq(self, context, extension):
-        return await self._run_in_pool(self._worker_logw_next_seq, context, extension)
+        return await self._run_in_executor(
+            self._worker_logw_next_seq, context, extension
+        )
 
     async def batch_logw_next(self, contexts):
         results = await asyncio.gather(
             *(
-                self._run_in_pool(self._worker_logw_next, context)
+                self._run_in_executor(self._worker_logw_next, context)
                 for context in contexts
             )
         )
@@ -95,24 +86,29 @@ class MPPotential(Potential):
 
     async def batch_complete(self, contexts):
         results = await asyncio.gather(
-            *(self._run_in_pool(self._worker_complete, context) for context in contexts)
+            *(
+                self._run_in_executor(self._worker_complete, context)
+                for context in contexts
+            )
         )
         return np.array(results)
 
     async def batch_prefix(self, contexts):
         results = await asyncio.gather(
-            *(self._run_in_pool(self._worker_prefix, context) for context in contexts)
+            *(
+                self._run_in_executor(self._worker_prefix, context)
+                for context in contexts
+            )
         )
         return np.array(results)
 
     def __del__(self):
-        if self.pool is not None:
-            self.pool.terminate()
-            self.pool.join()
-            self.pool = None
+        if self.executor is not None:
+            self.executor.shutdown()
+            self.executor = None
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.potential!r})"
+        return f"{self.__class__.__name__}({self.num_workers=})"
 
     def spawn(self):
         raise ValueError("MPPotentials are not spawnable.")
