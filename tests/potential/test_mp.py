@@ -117,6 +117,6 @@ async def test_mp_batch_logw_next_seq(mp_potential, regular_potential):
 
 
 def test_cleanup(mp_potential):
-    assert mp_potential.pool is not None
+    assert mp_potential.executor is not None
     mp_potential.__del__()
-    assert mp_potential.pool is None
+    assert mp_potential.executor is None
