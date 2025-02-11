@@ -31,16 +31,13 @@ def target_vocab():  # bytes
 
 @pytest.fixture
 def lifted(mock_potential, target_vocab):
-    def f(x):
-        return list(x)  # bytes -> list of ints
+    def f(seq):
+        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
 
     def g(x):
         return bytes(x)  # list of ints -> bytes
 
-    def f_seq(seq):
-        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
-
-    return Lifted(mock_potential, target_vocab, f=f, g=g, f_seq=f_seq)
+    return Lifted(mock_potential, target_vocab, f=f, g=g)
 
 
 def test_token_type(lifted):
@@ -109,17 +106,14 @@ async def test_lifted_batch_operations(lifted):
 
 @pytest.mark.asyncio
 async def test_lifted_invalid_vocab():
-    def f(x):
-        return list(x)  # bytes -> list of ints
+    def f(seq):
+        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
 
     def g(x):
         return bytes(x)  # list of ints -> bytes
 
-    def f_seq(seq):
-        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
-
     with pytest.raises(ValueError):
-        Lifted(MockPotential(), [b"xx", b"yy"], f=f, g=g, f_seq=f_seq)
+        Lifted(MockPotential(), [b"xx", b"yy"], f=f, g=g)
 
 
 @pytest.mark.asyncio
@@ -127,9 +121,8 @@ async def test_lifted_custom(mock_potential):
     lifted = Lifted(
         mock_potential,
         target_vocab=[b"aa", b"bb"],
-        f=lambda x: [x[0]],  # Take first byte of each token
+        f=lambda seq: [item[0] for item in seq],  # Take first byte of each token
         g=lambda x: bytes(x),
-        f_seq=lambda seq: [item[0] for item in seq],
     )
 
     assert lifted.token_type == Atomic(bytes)
