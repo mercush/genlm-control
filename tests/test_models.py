@@ -1,22 +1,47 @@
 import pytest
 import asyncio
 from unittest.mock import Mock
-from genlm_control.models import SequenceSampler, BatchSubModel, Proposal, Critic
+from genlm_control.potential import Potential
+from genlm_control.models import SequenceSampler, BatchSubModel, Proposal, Twist
 from genlm_control.constant import EOS
 
 TOKEN_WEIGHT = -0.5
 CRITIC_SCORE = 10
+PREFIX_WEIGHT_GEN = 2
+PREFIX_WEIGHT_CRITIC = 3
+
+
+class MockPotential(Potential):
+    def __init__(self):
+        super().__init__(list(range(256)))
+
+    async def prefix(self, context):
+        return PREFIX_WEIGHT_GEN
+
+    async def complete(self, context):
+        return 0
+
+
+class MockCritic(Potential):
+    def __init__(self):
+        super().__init__(list(range(256)))
+
+    async def prefix(self, context):
+        return PREFIX_WEIGHT_CRITIC
+
+    async def complete(self, context):
+        return CRITIC_SCORE
+
+    async def batch_score(self, contexts):
+        return [CRITIC_SCORE] * len(contexts)
 
 
 class MockGenerator:
+    target = MockPotential()
+
     async def batch_sample_token(self, contexts):
         # Returns (tokens, log_weights, log probs [unused here])
         return [1] * len(contexts), [TOKEN_WEIGHT] * len(contexts), None
-
-
-class MockCritic:
-    async def batch_score(self, contexts):
-        return [CRITIC_SCORE] * len(contexts)
 
 
 @pytest.fixture
@@ -34,22 +59,24 @@ async def test_sequence_sampler_basic():
     generator = MockGenerator()
     sampler = SequenceSampler(max_tokens=3, generator=generator)
 
+    await sampler.start()
+
     # Test initial state
     assert sampler.max_tokens == 3
     assert sampler.context == []
-    assert sampler.critic is None
+    assert sampler.twister is None
 
     # Test one step
     await sampler.step()
     assert len(sampler.context) == 1
     assert sampler.max_tokens == 2
-    assert sampler.weight == TOKEN_WEIGHT
+    assert sampler.weight == TOKEN_WEIGHT + PREFIX_WEIGHT_GEN
 
     # Test next step
     await sampler.step()
     assert len(sampler.context) == 2
     assert sampler.max_tokens == 1
-    assert sampler.weight == 2 * TOKEN_WEIGHT
+    assert sampler.weight == 2 * TOKEN_WEIGHT + PREFIX_WEIGHT_GEN
 
     await sampler.cleanup()
 
@@ -61,17 +88,25 @@ async def test_sequence_sampler_with_critic():
     sampler = SequenceSampler(max_tokens=3, generator=generator, critic=critic)
 
     # Test that twist is initialized
-    assert sampler.critic is not None
+    assert sampler.twister is not None
+
+    await sampler.start()
 
     # Test one step
     await sampler.step()
     assert len(sampler.context) == 1
-    assert sampler.weight == TOKEN_WEIGHT + CRITIC_SCORE
+    assert (
+        sampler.weight
+        == TOKEN_WEIGHT + CRITIC_SCORE + PREFIX_WEIGHT_GEN + PREFIX_WEIGHT_CRITIC
+    )
 
     # Test next step
     await sampler.step()
     assert len(sampler.context) == 2
-    assert sampler.weight == 2 * TOKEN_WEIGHT + CRITIC_SCORE
+    assert (
+        sampler.weight
+        == 2 * TOKEN_WEIGHT + CRITIC_SCORE + PREFIX_WEIGHT_GEN + PREFIX_WEIGHT_CRITIC
+    )
 
     await sampler.cleanup()
 
@@ -145,9 +180,9 @@ async def test_proposal():
 
 
 @pytest.mark.asyncio
-async def test_critic():
+async def test_twister():
     critic = MockCritic()
-    critic = Critic(critic)
+    twist = Twist(critic)
 
     # Create mock models
     model1 = Mock()
@@ -156,9 +191,9 @@ async def test_critic():
     model2.context = []
 
     # Process models
-    await asyncio.gather(critic(model1), critic(model2))
+    await asyncio.gather(twist(model1), twist(model2))
 
     model1.twist.assert_called_once()
     model2.twist.assert_called_once()
 
-    await critic.cleanup()
+    await twist.cleanup()

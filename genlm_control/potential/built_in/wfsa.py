@@ -74,8 +74,6 @@ class WFSA(Potential):
         return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
-        if not context:  # XXX ugh
-            return 0
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
         w = sum(curr[i] * bkwd[i] for i in curr)
@@ -93,10 +91,7 @@ class WFSA(Potential):
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
 
-        if context:
-            ctx_w = sum(curr[i] * bkwd[i] for i in curr)
-        else:
-            ctx_w = 1  # XXX ugh
+        ctx_w = sum(curr[i] * bkwd[i] for i in curr)
 
         if ctx_w == 0:
             raise ValueError(f"Context {context!r} has zero weight.")

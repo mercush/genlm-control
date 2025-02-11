@@ -92,7 +92,7 @@ class PotentialTests:
 
         For context $x_1, \\ldots, x_n$, this checks (in log space) whether:
         $$
-        \\texttt{complete}(x_1, \\ldots, x_n) = \\texttt{logw_next}(x_{1:n})[EOS] + \\sum_{i=1}^n \\texttt{logw_next}(x_{<i})[x_i]
+        \\texttt{complete}(x_1, \\ldots, x_n) = -\\texttt{prefix}(\epsilon) + \\texttt{logw_next}(x_{1:n})[EOS] + \\sum_{i=1}^n \\texttt{logw_next}(x_{<i})[x_i]
         $$
 
         Args:
@@ -104,7 +104,7 @@ class PotentialTests:
         Raises:
             AssertionError: If the autoregressive factorization is not satisfied.
         """
-        want = await self.complete(context)
+        want = (await self.complete(context)) - (await self.prefix([]))
 
         logw_next_results = await asyncio.gather(
             *[self.logw_next(context[:i]) for i in range(len(context))],
