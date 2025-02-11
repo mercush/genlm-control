@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from itertools import chain
+from genlm_control.typing import Atomic
 from genlm_control.constant import EOS
 from genlm_control.potential.lifted import Lifted
 from genlm_control.potential.base import Potential
@@ -25,57 +25,51 @@ def mock_potential():
 
 
 @pytest.fixture
-def target_vocab():  # byte sequences
+def target_vocab():  # bytes
     return [b"aa", b"bb", b"aab", b"dd"]
 
 
 @pytest.fixture
-def f():
-    return lambda x: list(chain(*x))
+def lifted(mock_potential, target_vocab):
+    def f(seq):
+        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
+
+    def g(x):
+        return bytes(x)  # list of ints -> bytes
+
+    return Lifted(mock_potential, target_vocab, f=f, g=g)
 
 
-@pytest.fixture
-def g():
-    return lambda x: bytes(x)
+def test_token_type(lifted):
+    assert lifted.token_type == Atomic(bytes)
 
 
 @pytest.mark.asyncio
-async def test_lifted_initialization(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_initialization(lifted, mock_potential):
     assert lifted.potential == mock_potential
     assert set(lifted.decode) == {b"aa", b"bb", b"aab"}
 
 
 @pytest.mark.asyncio
-async def test_lifted_invalid_vocab(f, g):
-    with pytest.raises(ValueError):
-        Lifted(MockPotential(), [b"xx", b"yy"], f=f, g=g)  # Invalid tokens
-
-
-@pytest.mark.asyncio
-async def test_lifted_prefix(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_prefix(lifted):
     result = await lifted.prefix([b"aa", b"bb"])
     assert result == 2
 
 
 @pytest.mark.asyncio
-async def test_lifted_complete(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_complete(lifted):
     result = await lifted.complete([b"aa", b"bb"])
     assert result == 4
 
 
 @pytest.mark.asyncio
-async def test_lifted_score(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_score(lifted):
     result = await lifted.score([b"aa", b"bb", EOS])
     assert result == 4
 
 
 @pytest.mark.asyncio
-async def test_lifted_logw_next(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_logw_next(mock_potential, lifted):
     have = await lifted.logw_next([b"aa", b"bb"])
     want = await mock_potential.batch_logw_next_seq(b"aabb", lifted.decode_eos)
     for i, x in enumerate(lifted.decode_eos):
@@ -83,8 +77,7 @@ async def test_lifted_logw_next(mock_potential, target_vocab, f, g):
 
 
 @pytest.mark.asyncio
-async def test_lifted_batch_operations(mock_potential, target_vocab, f, g):
-    lifted = Lifted(mock_potential, target_vocab, f=f, g=g)
+async def test_lifted_batch_operations(lifted):
     sequences = [[b"aa"], [b"bb"]]
 
     have = await lifted.batch_complete(sequences)
@@ -112,13 +105,27 @@ async def test_lifted_batch_operations(mock_potential, target_vocab, f, g):
 
 
 @pytest.mark.asyncio
+async def test_lifted_invalid_vocab():
+    def f(seq):
+        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
+
+    def g(x):
+        return bytes(x)  # list of ints -> bytes
+
+    with pytest.raises(ValueError):
+        Lifted(MockPotential(), [b"xx", b"yy"], f=f, g=g)
+
+
+@pytest.mark.asyncio
 async def test_lifted_custom(mock_potential):
     lifted = Lifted(
         mock_potential,
         target_vocab=[b"aa", b"bb"],
-        f=lambda x: [item[0] for item in x],  # Take first byte of each token
+        f=lambda seq: [item[0] for item in seq],  # Take first byte of each token
         g=lambda x: bytes(x),
     )
+
+    assert lifted.token_type == Atomic(bytes)
 
     assert len(lifted.decode) == 2
     assert set(lifted.decode) == {b"a", b"b"}

@@ -6,21 +6,42 @@ from arsenal.maths import logsumexp
 from genlm_control.constant import EOS
 from genlm_control.util import LazyWeights
 from genlm_control.operators import PotentialOps
+from genlm_control.typing import infer_vocabulary_type
 from genlm_control.potential.testing import PotentialTests
 
 
 class Potential(ABC, PotentialOps, PotentialTests):
     """Abstract base class for potentials.
 
-    A Potential represents a weighted language over a vocabulary. Subclasses must minimally
-    implement methods to assess the weight of a sequence as a member of the language (`complete`) and
-    as a prefix of the language (`prefix`).
+    A Potential represents a weighted language over a vocabulary.
 
-    Args:
-        vocabulary (list): List of tokens that make up the vocabulary.
+    Subclasses must minimally implement methods to assess the weight of a sequence as a member of the language (`complete`) and
+    as a prefix of the language (`prefix`).
     """
 
-    def __init__(self, vocabulary):
+    def __init__(self, vocabulary, token_type=None):
+        """
+        Initialize the potential.
+
+        Args:
+            vocabulary (list): List of tokens that make up the vocabulary.
+            token_type (TokenType, optional): Optional TokenType of all elements of the vocabulary.
+                If None, will be inferred from vocabulary.
+
+        Raises:
+            ValueError: If vocabulary is empty.
+            TypeError: If vocabulary contains tokens which are not of `token_type`.
+        """
+        if not vocabulary:
+            raise ValueError("Vocabulary cannot be empty")
+
+        if token_type is None:
+            token_type = infer_vocabulary_type(vocabulary)
+
+        if not all(token_type.check(x) for x in vocabulary):
+            raise TypeError(f"Tokens in vocabulary must be of type {token_type}.")
+
+        self.token_type = token_type
         self.decode = vocabulary
         self.encode = {}
         for i, x in enumerate(vocabulary):

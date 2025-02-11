@@ -1,24 +1,19 @@
-from genlm_control.potential.base import Potential
-from itertools import chain
-
-# single state transducer
+from genlm_control.potential import Potential
 
 
 class Lifted(Potential):
     """Represents a potential lifted to operate on a target vocabulary."""
 
-    def __init__(self, potential, target_vocab, f=None, g=None):
+    def __init__(self, potential, target_vocab, f, g):
         self.potential = potential
-        # target_vocab^* -> potential.\Sigma^*
-        self.f = f or (lambda x: list(chain(*x)))
-        # potential.\Sigma^* -> target_vocab
-        self.g = g or (lambda x: bytes(x))
+        self.f = f
+        self.g = g
 
         valid_tokens = []
-        for token in target_vocab:
-            token = self.f([token])  # XXX need an abstraction for transduction
-            if set(token) <= set(potential.decode):
-                valid_tokens.append(self.g(token))
+        for target_token in target_vocab:
+            base_token = f([target_token])
+            if set(base_token) <= set(potential.decode):
+                valid_tokens.append(g(base_token))
 
         if not valid_tokens:
             raise ValueError("No valid tokens found in target vocabulary")

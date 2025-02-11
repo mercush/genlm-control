@@ -27,6 +27,11 @@ class PotentialOps:
 
         Args:
             other (Potential): The potential instance whose vocabulary will be used.
+            transformations (tuple, optional): A tuple of (f, g, f_seq) where:
+            - f: function mapping tokens from self's vocab to other's vocab
+            - g: function mapping tokens from other's vocab to self's vocab
+            - f_seq: function mapping sequences from self's vocab to other's vocab
+            If None, transformations will be inferred automatically.
 
         Returns:
             (Lifted): A Potential that operates on the vocabulary of `other`.

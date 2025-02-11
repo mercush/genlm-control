@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 import numpy as np
-
+from genlm_control.typing import Atomic
 from genlm_control.potential.base import Potential, EOS
 
 
@@ -16,6 +16,10 @@ class SimplePotential(Potential):
 @pytest.fixture
 def potential():
     return SimplePotential([b"a", b"b", b"c"])
+
+
+def test_token_type(potential):
+    assert potential.token_type == Atomic(bytes)
 
 
 @pytest.mark.asyncio
