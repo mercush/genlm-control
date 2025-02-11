@@ -1,7 +1,7 @@
 import numpy as np
 from genlm_grammar import CFG, Earley, Float
 from genlm_grammar.lark_interface import LarkStuff
-from genlm_grammar.cfglm import locally_normalize, _gen_nt
+from genlm_grammar.cfglm import _gen_nt
 
 from genlm_control.constant import EOS
 from genlm_control.potential.base import Potential
@@ -82,8 +82,6 @@ class WCFG(Potential):
         Returns:
             (float): The log prefix weight of the context under the WCFG.
         """
-        if not context:
-            return 0
         w = self.model(context)
         return np.log(w) if w > 0 else float("-inf")
 
@@ -98,8 +96,7 @@ class WCFG(Potential):
             (LazyWeights): The log weights for the next tokens given the context.
         """
         ws = self.model.next_token_weights(self.model.chart(context))
-        if context:
-            ws = ws.trim().normalize()
+        ws = ws.trim().normalize()
         log_ws = np.array(
             [np.log(ws[x]) if ws[x] > 0 else float("-inf") for x in self.decode_eos]
         )
@@ -119,36 +116,55 @@ class WCFG(Potential):
         return WCFG(self.cfg)
 
 
-class PCFG(WCFG):
-    def __init__(self, cfg, eos=None, **kwargs):
-        super().__init__(locally_normalize(cfg, **kwargs), eos=eos)
-
-
 class BoolCFG(WCFG):
     @classmethod
     def from_lark(cls, lark_string, charset="core"):
         byte_cfg = LarkStuff(lark_string).byte_cfg(charset=charset)
         return cls(byte_cfg)
 
-    async def prefix(self, context):
-        prefix_w = await super().prefix(context)
-        if prefix_w > float("-inf"):
-            return 0
-        return float("-inf")
-
     async def complete(self, context):
-        complete_w = await super().complete(context)
-        if complete_w > float("-inf"):
-            return 0
-        return float("-inf")
+        """
+        Compute the log weight of the context under the WCFG.
+
+        Args:
+            context (list): The context to compute the weight for.
+
+        Returns:
+            (float): The log weight of the context under the WCFG.
+        """
+        w = self.model([*context, EOS])
+        return 0 if w else float("-inf")
+
+    async def prefix(self, context):
+        """
+        Compute the log prefix weight of the context under the WCFG.
+
+        Args:
+            context (list): The context to compute the prefix weight for.
+
+        Returns:
+            (float): The log prefix weight of the context under the WCFG.
+        """
+        w = self.model(context)
+        return 0 if w > 0 else float("-inf")
 
     async def logw_next(self, context):
-        logw_next = await super().logw_next(context)
-        return logw_next.spawn(
-            new_weights=np.where(
-                logw_next.weights > float("-inf"), 0, logw_next.weights
+        ws = self.model.next_token_weights(self.model.chart(context))
+        log_ws = np.array([0 if ws[x] > 0 else float("-inf") for x in self.decode_eos])
+        return self.make_lazy_weights(log_ws)
+
+    async def batch_logw_next(self, contexts):
+        Ws = []
+        for context in contexts:
+            ws = self.model.next_token_weights(self.model.chart(context))
+            log_ws = np.array(
+                [0 if ws[x] > 0 else float("-inf") for x in self.decode_eos]
             )
-        )
+            Ws.append(self.make_lazy_weights(log_ws))
+        return Ws
+
+    def spawn(self):
+        return BoolCFG(self.cfg)
 
     def __repr__(self):
         return f"BoolCFG(cfg={self.cfg!r})"

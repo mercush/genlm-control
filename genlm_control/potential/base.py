@@ -332,7 +332,9 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
         context = [] if context is None else list(context)
         contexts = [context.copy() for _ in range(n_samples)]
-        log_ws = np.zeros(n_samples, dtype=np.float64)
+
+        empty_w = await self.prefix([])
+        log_ws = np.zeros(n_samples, dtype=np.float64) + empty_w
         active = np.ones(n_samples, dtype=bool)
 
         while np.any(active):
@@ -351,8 +353,6 @@ class Potential(ABC, PotentialOps, PotentialTests):
                 next_token = np.random.choice(self.decode_eos, p=p_next)
                 contexts[idx].append(next_token)
                 log_ws[idx] += Z
-
-                print(contexts[idx], log_ws[idx])
 
                 if next_token is EOS or len(contexts[idx]) >= max_tokens:
                     active[idx] = False
