@@ -4,6 +4,31 @@ from genlm_grammar import Float, Log
 from arsenal.maths import logsumexp
 
 
+# class InferenceEngine:
+#    def __init__(self, unit_sampler, critic=None):
+#        self.model = SequenceSampler(unit_sampler, critic)
+
+#    async def __call__(
+#        self,
+#        n_particles,
+#        ess_threshold=0.5,
+#        max_tokens=float("inf"),
+#        visualization_dir=None,
+#        jsonl_file=None,
+#    ):
+#        self.model.max_tokens = max_tokens
+
+#        particles = await smc_standard(
+#            self.model,
+#            n_particles,
+#            ess_threshold,
+#            visualization_dir,
+#            jsonl_file,
+#        )
+
+#        return ParticleApproximation(particles)
+
+
 class LazyWeights:
     def __init__(self, weights, encode, decode, log=True):
         assert len(weights) == len(decode)
@@ -85,8 +110,7 @@ class LazyWeights:
         return repr(self.materialize())
 
     def exp(self):
-        if not self.is_log:
-            raise ValueError("Cannot exponentiate non-log weights")
+        assert self.is_log, "Exponentiating non-log weights"
         return self.spawn(np.exp(self.weights), log=False)
 
     def log(self):
@@ -111,6 +135,20 @@ class LazyWeights:
             have, want = self[x], other[x]
             assert np.isclose(have, want, **kwargs), f"{x}: {have} != {want}"
 
+    def sample(self):
+        lws = self.normalize()
+
+        if self.is_log:
+            ps = np.exp(lws.weights)
+        else:
+            ps = lws.weights
+
+        nonzero_idx = ps.nonzero()[0]
+        nonzero_probs = ps[nonzero_idx]
+        chosen_idx = nonzero_idx[np.random.multinomial(1, pvals=nonzero_probs).argmax()]
+
+        return self.decode[chosen_idx], ps[chosen_idx]
+
 
 def load_trie(V, backend=None, **kwargs):
     if backend is None:
@@ -124,6 +162,12 @@ def load_trie(V, backend=None, **kwargs):
         from genlm_backend.trie import TokenCharacterTrie
 
         return TokenCharacterTrie(V, **kwargs)
+
+
+def load_async_trie(V, backend=None, **kwargs):
+    from genlm_backend.trie import AsyncTokenCharacterTrie
+
+    return AsyncTokenCharacterTrie(load_trie(V, backend, **kwargs))
 
 
 def sample_categorical(pvals):
