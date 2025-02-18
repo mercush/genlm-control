@@ -52,6 +52,9 @@ class Atomic(TokenType):
     def check(self, value):
         return isinstance(value, self.type)
 
+    def convert(self, value):
+        return self.type(value)
+
 
 @dataclass
 class Sequence(TokenType):
@@ -63,6 +66,9 @@ class Sequence(TokenType):
         return isinstance(value, (list, tuple)) and all(
             self.element_type.check(x) for x in value
         )
+
+    def convert(self, value):
+        return tuple(self.element_type.convert(x) for x in value)
 
 
 def infer_type(value):

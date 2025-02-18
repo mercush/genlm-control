@@ -22,23 +22,19 @@ class PotentialOps:
 
         return Product(self, other)
 
-    def lift(self, other, f, g):
-        """Lift the current potential to operate on the vocabulary of another potential.
+    def coerce(self, other, f):
+        """Coerce the current potential to operate on the vocabulary of another potential.
 
         Args:
             other (Potential): The potential instance whose vocabulary will be used.
-            transformations (tuple, optional): A tuple of (f, g, f_seq) where:
-            - f: function mapping tokens from self's vocab to other's vocab
-            - g: function mapping tokens from other's vocab to self's vocab
-            - f_seq: function mapping sequences from self's vocab to other's vocab
-            If None, transformations will be inferred automatically.
+            f: function mapping tokens from self's vocab to other's vocab
 
         Returns:
-            (Lifted): A Potential that operates on the vocabulary of `other`.
+            (Coerced): A Potential that operates on the vocabulary of `other`.
         """
-        from genlm_control.potential.lifted import Lifted
+        from genlm_control.potential.coerce import Coerced
 
-        return Lifted(self, other.decode, f=f, g=g)
+        return Coerced(self, other.decode, f=f)
 
     def to_autobatched(self):
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.

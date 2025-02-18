@@ -1,6 +1,6 @@
 import pytest
 from genlm_control.potential.base import Potential
-from genlm_control.potential.lifted import Lifted
+from genlm_control.potential.coerce import Coerced
 from genlm_control.product import Product
 from genlm_control.potential.autobatch import AutoBatchedPotential
 from genlm_control.potential.mp import MPPotential
@@ -47,28 +47,22 @@ async def test_product_operator(p1, p2):
 
 
 @pytest.mark.asyncio
-async def test_lift_operator(p1):
+async def test_coerce_operator(p1):
     target_vocab = [b"aa", b"bb", b"cc"]
 
     # Test with default transformations
     def f(seq):
         return [x for xs in seq for x in xs]
 
-    def g(x):
-        return bytes(x)
-
-    lifted = p1.lift(SimplePotential(target_vocab), f=f, g=g)
-    assert set(lifted.decode) == set(target_vocab)
+    coerced = p1.coerce(SimplePotential(target_vocab), f=f)
+    assert set(coerced.decode) == set(target_vocab)
 
     # Test with custom transformations
     def f(seq):
         return [xs[0] for xs in seq]
 
-    def g(x):
-        return bytes(x)
-
-    have = p1.lift(SimplePotential(target_vocab), f=f, g=g)
-    want = Lifted(p1, target_vocab, f=f, g=g)
+    have = p1.coerce(SimplePotential(target_vocab), f=f)
+    want = Coerced(p1, target_vocab, f=f)
     assert have.potential == want.potential
     assert have.decode == want.decode
 
@@ -107,11 +101,8 @@ async def test_operator_chaining(p1, p2):
     def f(seq):
         return [x for xs in seq for x in xs]
 
-    def g(x):
-        return bytes(x)
-
-    have = (p1 * p2).lift(SimplePotential(V), f=f, g=g)
-    want = Lifted(Product(p1, p2), V, f=f, g=g)
+    have = (p1 * p2).coerce(SimplePotential(V), f=f)
+    want = Coerced(Product(p1, p2), V, f=f)
     assert have.potential.p1 == want.potential.p1
     assert have.potential.p2 == want.potential.p2
     assert have.decode == want.decode
