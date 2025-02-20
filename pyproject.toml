@@ -27,6 +27,7 @@ test = [
     "pytest",
     "pytest-benchmark",
     "pytest-asyncio",
+    "hypothesis",
 ]
 docs = [
     "mkdocs",

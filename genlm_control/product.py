@@ -81,5 +81,11 @@ class Product(Potential):
             for n in range(len(contexts))
         ]
 
+    def spawn(self, p1_opts=None, p2_opts=None):
+        return Product(
+            self.p1.spawn(**(p1_opts or {})),
+            self.p2.spawn(**(p2_opts or {})),
+        )
+
     def __repr__(self):
         return f"Product({self.p1!r}, {self.p2!r})"

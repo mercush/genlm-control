@@ -1,5 +1,4 @@
 from genlm_control.potential import Potential
-from genlm_control.typing import infer_vocabulary_type
 
 
 class Coerced(Potential):
@@ -9,20 +8,16 @@ class Coerced(Potential):
         self.potential = potential
         self.f = f
 
-        target_type = infer_vocabulary_type(target_vocab)
-
         valid_tokens = []
         for target_token in target_vocab:
             base_token = f([target_token])
             if set(base_token) <= set(potential.decode):
-                valid_tokens.append(target_type.convert(base_token))
+                valid_tokens.append(target_token)
 
         if not valid_tokens:
             raise ValueError("No valid tokens found in target vocabulary")
 
         super().__init__(valid_tokens)
-
-        assert self.token_type == target_type
 
     def _batch_f(self, contexts):
         return [self.f(context) for context in contexts]
