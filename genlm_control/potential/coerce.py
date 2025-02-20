@@ -1,19 +1,18 @@
 from genlm_control.potential import Potential
 
 
-class Lifted(Potential):
-    """Represents a potential lifted to operate on a target vocabulary."""
+class Coerced(Potential):
+    """Represents a potential coerced to operate on another vocabulary."""
 
-    def __init__(self, potential, target_vocab, f, g):
+    def __init__(self, potential, target_vocab, f):
         self.potential = potential
         self.f = f
-        self.g = g
 
         valid_tokens = []
         for target_token in target_vocab:
             base_token = f([target_token])
             if set(base_token) <= set(potential.decode):
-                valid_tokens.append(g(base_token))
+                valid_tokens.append(target_token)
 
         if not valid_tokens:
             raise ValueError("No valid tokens found in target vocabulary")
@@ -52,4 +51,4 @@ class Lifted(Potential):
         )
 
     def __repr__(self):
-        return f"Lifted({self.potential!r})"
+        return f"{self.__class__.__name__}({self.potential!r})"

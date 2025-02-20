@@ -5,8 +5,8 @@ from arsenal.maths import logsumexp
 
 from genlm_control.constant import EOS
 from genlm_control.util import LazyWeights
-from genlm_control.operators import PotentialOps
 from genlm_control.typing import infer_vocabulary_type
+from genlm_control.potential.operators import PotentialOps
 from genlm_control.potential.testing import PotentialTests
 
 
@@ -299,6 +299,17 @@ class Potential(ABC, PotentialOps, PotentialTests):
             weights=weights, encode=self.encode_eos, decode=self.decode_eos, log=log
         )
 
+    def alloc_logws(self, default=float("-inf")):
+        """Allocate a new array of log weights for the potential's vocabulary and EOS.
+
+        Args:
+            default (float, optional): Default log weight. Defaults to -inf.
+
+        Returns:
+            (np.array): Array of log weights.
+        """
+        return np.full((len(self.decode_eos),), default)
+
     def spawn(self):
         """
         Spawn a fresh instance of the potential.
@@ -310,7 +321,26 @@ class Potential(ABC, PotentialOps, PotentialTests):
             "Potential.spawn() must be implemented by subclasses."
         )
 
-    async def sample(self, context=None, max_tokens=float("inf"), n_samples=1):
+    async def sample(self, context=None, max_tokens=float("inf")):
+        """Generate properly weighted samples from the potential.
+
+        Args:
+            context (list, optional): Initial context. Defaults to None.
+            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to float("inf").
+
+        Returns:
+            list: Properly weighted sample from the potential.
+
+        Raises:
+            ValueError: If max_tokens < 1
+        """
+        if max_tokens < 1:
+            raise ValueError("max_tokens must be at least 1")
+
+        xs, ws, ps = await self.batch_sample(context, max_tokens, 1)
+        return xs[0], ws[0], ps[0]
+
+    async def batch_sample(self, context=None, max_tokens=float("inf"), n_samples=1):
         """Generate properly weighted samples from the potential.
 
         Args:
@@ -335,6 +365,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
         empty_w = await self.prefix([])
         log_ws = np.zeros(n_samples, dtype=np.float64) + empty_w
+        log_ps = np.zeros(n_samples, dtype=np.float64)
         active = np.ones(n_samples, dtype=bool)
 
         while np.any(active):
@@ -350,11 +381,13 @@ class Potential(ABC, PotentialOps, PotentialTests):
                 # Handle numerical precision issues
                 p_next = p_next / np.sum(p_next)
 
-                next_token = np.random.choice(self.decode_eos, p=p_next)
+                next_token_idx = np.random.choice(range(len(self.decode_eos)), p=p_next)
+                next_token = self.decode_eos[next_token_idx]
                 contexts[idx].append(next_token)
                 log_ws[idx] += Z
+                log_ps[idx] += np.log(p_next[next_token_idx])
 
                 if next_token is EOS or len(contexts[idx]) >= max_tokens:
                     active[idx] = False
 
-        return contexts, log_ws
+        return contexts, log_ws, log_ps
