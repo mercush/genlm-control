@@ -151,7 +151,7 @@ class TopKSetSampler(TrieSetSampler):
             logws[token_id] = logw
             sampled[token_id] = True
             k += 1
-            if k >= self.K:
+            if self.K is not None and k >= self.K:
                 break
 
         logp_wc = 0
