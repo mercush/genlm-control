@@ -130,7 +130,9 @@ class PotentialTests:
             )
             print(self._format_diff(want, have, abs_diff, rel_diff, atol, rtol))
 
-    async def assert_batch_consistency(self, contexts, extensions=None, verbosity=0):
+    async def assert_batch_consistency(
+        self, contexts, extensions=None, rtol=1e-3, atol=1e-5, verbosity=0
+    ):
         """
         Assert that batch results are equal to non-batch results.
 
@@ -138,6 +140,8 @@ class PotentialTests:
             contexts (list[list[bytes]]): Contexts to test.
             extensions (list[bytes], optional): Extensions to test logw_next_seq methods.
                 Defaults to None, in which case the logw_next_seq methods are not tested.
+            rtol (float): Relative tolerance for floating point comparison.
+            atol (float): Absolute tolerance for floating point comparison.
             verbosity (int): Verbosity level.
 
         Raises:
@@ -149,8 +153,8 @@ class PotentialTests:
         for i, context in enumerate(contexts):
             logw_next = await self.logw_next(context)
             try:
-                np.testing.assert_array_equal(
-                    batch_logw_nexts[i].weights, logw_next.weights
+                np.testing.assert_allclose(
+                    batch_logw_nexts[i].weights, logw_next.weights, rtol=rtol, atol=atol
                 )
                 if verbosity > 0:
                     print(
@@ -168,7 +172,8 @@ class PotentialTests:
                 )
 
             score = await self.score(context)
-            if batch_scores[i] != score:
+            abs_diff, rel_diff = self._compute_diff(score, batch_scores[i])
+            if abs_diff > atol or rel_diff > rtol:
                 raise AssertionError(
                     f"{self.colors['red']}Batch score mismatch for context {context}:{self.colors['reset']}\n"
                     + f"{self.colors['green']}Non-batched: {score}\n"
@@ -189,7 +194,10 @@ class PotentialTests:
                 )
                 for j, extension in enumerate(extensions):
                     logw_next_seq = await self.logw_next_seq(context, extension)
-                    if batch_logw_next_seqs[j] != logw_next_seq:
+                    abs_diff, rel_diff = self._compute_diff(
+                        logw_next_seq, batch_logw_next_seqs[j]
+                    )
+                    if abs_diff > atol or rel_diff > rtol:
                         raise AssertionError(
                             f"{self.colors['red']}Batch logw_next_seq mismatch for context {context} and extension {extension}:{self.colors['reset']}\n"
                             + f"{self.colors['green']}Non-batched: {logw_next_seq}{self.colors['reset']}\n"

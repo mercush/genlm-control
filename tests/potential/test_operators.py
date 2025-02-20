@@ -1,9 +1,11 @@
 import pytest
-from genlm_control.potential.base import Potential
-from genlm_control.potential.coerce import Coerced
-from genlm_control.product import Product
-from genlm_control.potential.autobatch import AutoBatchedPotential
-from genlm_control.potential.mp import MPPotential
+from genlm_control.potential import (
+    Potential,
+    Coerced,
+    Product,
+    AutoBatchedPotential,
+    MPPotential,
+)
 
 
 class SimplePotential(Potential):

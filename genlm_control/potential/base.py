@@ -5,8 +5,8 @@ from arsenal.maths import logsumexp
 
 from genlm_control.constant import EOS
 from genlm_control.util import LazyWeights
-from genlm_control.operators import PotentialOps
 from genlm_control.typing import infer_vocabulary_type
+from genlm_control.potential.operators import PotentialOps
 from genlm_control.potential.testing import PotentialTests
 
 

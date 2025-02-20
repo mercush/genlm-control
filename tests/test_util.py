@@ -128,11 +128,11 @@ def test_lazy_weights_assertions():
         lw = LazyWeights(weights, {"a": 0, "b": 1}, ["a", "b"])
         np.array(lw)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         lw = LazyWeights(np.log(weights), {"a": 0, "b": 1}, ["a", "b"], log=True)
         lw.log()  # Can't take log of log weights
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         lw = LazyWeights(weights, {"a": 0, "b": 1}, ["a", "b"], log=False)
         lw.exp()  # Can't take exp of non-log weights
 

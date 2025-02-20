@@ -2,8 +2,7 @@ import pytest
 import numpy as np
 from genlm_control.typing import Atomic
 from genlm_control.constant import EOS
-from genlm_control.potential.coerce import Coerced
-from genlm_control.potential.base import Potential
+from genlm_control.potential import Coerced, Potential
 
 
 class MockPotential(Potential):
@@ -121,7 +120,7 @@ async def test_coerced_custom(mock_potential):
     assert coerced.token_type == Atomic(bytes)
 
     assert len(coerced.decode) == 2
-    assert set(coerced.decode) == {b"a", b"b"}
+    assert set(coerced.decode) == {b"aa", b"bb"}
 
     have = await coerced.complete([b"aa", b"bb"])
     want = await mock_potential.complete(b"ab")

@@ -114,8 +114,7 @@ class LazyWeights:
         return self.spawn(np.exp(self.weights), log=False)
 
     def log(self):
-        if self.is_log:
-            raise ValueError("Cannot take the logarithm of log weights")
+        assert not self.is_log, "Taking the logarithm of non-log weights"
         return self.spawn(np.log(self.weights), log=True)
 
     def sum(self):

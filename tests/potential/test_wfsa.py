@@ -109,11 +109,11 @@ async def test_sample(float_wfsa):
     # Mean importance weight provides an unbiased estimate of
     # the normalizing constant of the model.
     pot = WFSA(float_wfsa)
-    contexts, log_ws = await pot.sample(n_samples=100)
+    contexts, log_ws, _ = await pot.batch_sample(n_samples=100)
     total_weight = 4  # total weight of all sequences
     assert np.isclose(np.mean(np.exp(log_ws)), total_weight)
 
     pot = BoolFSA(float_wfsa)
-    contexts, log_ws = await pot.sample(n_samples=100)
+    contexts, log_ws, _ = await pot.batch_sample(n_samples=100)
     total_weight = 2  # two valid sequences
     assert np.isclose(np.mean(np.exp(log_ws)), total_weight)

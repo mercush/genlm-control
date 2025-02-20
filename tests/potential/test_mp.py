@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 
-from genlm_control.potential.base import Potential, EOS
-from genlm_control.potential.mp import MPPotential
+from genlm_control import EOS
+from genlm_control.potential import Potential, MPPotential
 
 
 class SimplePotential(Potential):
