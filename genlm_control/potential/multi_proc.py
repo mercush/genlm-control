@@ -4,7 +4,7 @@ from concurrent.futures import ProcessPoolExecutor
 from genlm_control.potential.base import Potential
 
 
-class MPPotential(Potential):
+class MultiProcPotential(Potential):
     """A Potential that adds parallel processing capabilities to any base Potential implementation.
 
     Creates a process pool of worker processes, each containing an instance of the potential.
@@ -16,7 +16,7 @@ class MPPotential(Potential):
 
     def __init__(self, potential_factory, factory_args, num_workers=2):
         """
-        Initialize the MPPotential.
+        Initialize the MultiProcPotential.
 
         Args:
             potential_factory (callable): A factory function that creates a potential instance.
@@ -51,23 +51,25 @@ class MPPotential(Potential):
 
     @staticmethod
     def _worker_logw_next(context):
-        return MPPotential._run_coroutine(_worker_potential.logw_next(context)).weights
+        return MultiProcPotential._run_coroutine(
+            _worker_potential.logw_next(context)
+        ).weights
 
     @staticmethod
     def _worker_prefix(context):
-        return MPPotential._run_coroutine(_worker_potential.prefix(context))
+        return MultiProcPotential._run_coroutine(_worker_potential.prefix(context))
 
     @staticmethod
     def _worker_complete(context):
-        return MPPotential._run_coroutine(_worker_potential.complete(context))
+        return MultiProcPotential._run_coroutine(_worker_potential.complete(context))
 
     @staticmethod
     def _worker_score(context):
-        return MPPotential._run_coroutine(_worker_potential.score(context))
+        return MultiProcPotential._run_coroutine(_worker_potential.score(context))
 
     @staticmethod
     def _worker_logw_next_seq(context, extension):
-        return MPPotential._run_coroutine(
+        return MultiProcPotential._run_coroutine(
             _worker_potential.logw_next_seq(context, extension)
         )
 
@@ -126,4 +128,4 @@ class MPPotential(Potential):
         return f"{self.__class__.__name__}({self.num_workers=})"
 
     def spawn(self):
-        raise ValueError("MPPotentials are not spawnable.")
+        raise ValueError("MultiProcPotentials are not spawnable.")
