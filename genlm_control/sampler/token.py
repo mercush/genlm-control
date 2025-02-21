@@ -1,8 +1,7 @@
-from hfppl import SubModel
 from arsenal.maths import sample_dict, logsumexp
 
 
-class TokenSampler(SubModel):
+class TokenSampler:
     """Base class for sampling a token from a potential's vocabulary.
 
     Args:
@@ -17,12 +16,6 @@ class TokenSampler(SubModel):
 
     async def sample(self, context, draw=sample_dict):
         raise NotImplementedError("Subclasses must implement sample method")
-
-    async def forward(self):
-        token, logw, logp = await self.sample(self.parent.context)
-        self.parent.logp += logp
-        self.parent.score(logw)
-        return token
 
     async def trace_swor(self, context):
         from genlm_control.tracer import TraceSWOR
