@@ -62,7 +62,7 @@ class Product(Potential):
             if overlap_ratio < threshold:
                 warnings.warn(
                     f"Common vocabulary ({len(common_vocab)} tokens) is less than {threshold * 100}% "
-                    f"of {name}'s ({p1!r}) vocabulary ({len(potential.decode)} tokens). "
+                    f"of {name}'s ({potential!r}) vocabulary ({len(potential.decode)} tokens). "
                     "This Product potential only operates on this relatively small subset of tokens.",
                     RuntimeWarning,
                 )
