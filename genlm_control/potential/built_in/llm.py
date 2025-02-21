@@ -4,7 +4,6 @@ import numpy as np
 from typing import NamedTuple
 from arsenal.maths import logsumexp
 
-from genlm_control.constant import EOS
 from genlm_control.potential.base import Potential
 from genlm_backend.llm import AsyncVirtualLM, AsyncTransformer, MockAsyncLM
 
@@ -54,6 +53,18 @@ class PromptedLLM(Potential):
     """
 
     def __init__(self, llm, prompt=None, eos_tokens=None):
+        """
+        Initializes the PromptedLLM potential.
+
+        Args:
+            llm (AsyncLM): The language model to use.
+            prompt (str|list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
+            eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
+                Defaults to the EOS token of the language model.
+
+        Raises:
+            ValueError: If any EOS token is not in the language model vocabulary.
+        """
         self.model = llm
         self.prompt_ids = []
 
@@ -154,7 +165,15 @@ class PromptedLLM(Potential):
         return [self.token_maps.decode[x] for x in ids]
 
     async def log_probability(self, context):
-        """Compute the log probability of the context given the prompt."""
+        """
+        Compute the log probability of the context given the prompt.
+
+        Args:
+            context (list): The context.
+
+        Returns:
+            (float): The log probability of the context.
+        """
         if not context:
             return 0
 
@@ -170,13 +189,29 @@ class PromptedLLM(Potential):
         return total_logprob
 
     async def prefix(self, context):
-        if context and context[-1] is EOS:
-            raise ValueError("Context cannot end with an EOS token")
+        """
+        Compute the log probability of the context given the prompt.
+
+        Args:
+            context (list): The context.
+
+        Returns:
+            (float): The log probability of the context.
+        """
         return await self.log_probability(context)
 
     async def complete(self, context):
-        if context and context[-1] is EOS:
-            raise ValueError("Context cannot end with an EOS token")
+        """
+        Compute the log probability of the context and the eos tokens given the prompt.
+
+        If the model has multiple eos tokens, their log probabilities will be summed.
+
+        Args:
+            context (list): The context.
+
+        Returns:
+            (float): The log probability of the context.
+        """
         logp_context = await self.log_probability(context)
         logw_next = await self.model.next_token_logprobs(
             self.prompt_ids + self.encode_tokens(context)
@@ -222,7 +257,7 @@ class PromptedLLM(Potential):
         """Get log probabilities for next tokens given `self.prompt` + `context`, for each context.
 
         Args:
-            contexts: List of token ID sequences representing contexts
+            contexts (list): List of token ID sequences representing contexts
 
         Returns:
             (List[LazyWeights]): Log probabilities for next tokens for each context

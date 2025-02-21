@@ -46,9 +46,32 @@ class SetSampler(ABC):
 
 
 class TrieSetSampler(SetSampler):
-    """A set sampler that uses a trie to sample a weighted set of tokens."""
+    """
+    TrieSetSampler is a specialized set sampler that utilizes a trie data structure to efficiently sample a weighted set of tokens.
+
+    This sampler is designed to work with two types of potentials: a potential over a vocabulary of iterables and
+    a potential over a vocabulary of items which are the elements of the iterables (e.g., byte sequences and ints, strings and chars, etc.).
+
+    The target with respect to which the set's weights are computed is:
+
+    ```
+        iter_potential * item_potential.coerce(iter_potential, f=lambda context: [item for items in context for item in items])
+    ```
+
+    where `f` is a function that flattens the context into a list of items.
+    """
 
     def __init__(self, iter_potential, item_potential):
+        """
+        Initialize the TrieSetSampler.
+
+        Args:
+            iter_potential (Potential): The potential defined over a vocabulary of iterables.
+            item_potential (Potential): The potential defined over a vocabulary of items.
+
+        Raises:
+            ValueError: If the token type of `iter_potential` is not an iterable of the token type of `item_potential`.
+        """
         if not iter_potential.token_type.is_iterable_of(item_potential.token_type):
             raise ValueError(
                 "Token type of `iter_potential` must be an iterable of token type of `item_potential`. "
@@ -73,9 +96,32 @@ class TrieSetSampler(SetSampler):
         }
 
     async def sample_set(self, context):
+        """
+        Sample a set of tokens given a context.
+
+        Each token is associated with a log weight that corresponds to:
+
+        ```
+            target.logw_next(token | context) - log_inclusion_probability
+        ```
+
+        where log_inclusion_probability is the log of the probability the token was included in the sampled set.
+
+        Args:
+            context (list): The sequence to condition on.
+
+        Returns:
+            A weighted set of tokens.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in subclasses.
+        """
         raise NotImplementedError("Subclasses must implement sample_set")
 
     async def cleanup(self):
+        """
+        Cleanup the TrieSetSampler. It is recommended to call this method at the end of usage.
+        """
         if task := getattr(self.trie_executor, "_task", None):
             if not task.done() and not task.cancelled():
                 task.cancel()
@@ -86,6 +132,14 @@ class TrieSetSampler(SetSampler):
 
 
 class EagerSetSampler(TrieSetSampler):
+    """
+    EagerSetSampler is a subclass of TrieSetSampler that implements an eager sampling strategy
+    for generating a set of tokens. It incrementally samples items from the item-wise product
+    of the iter_potential and item_potential and accumulates any valid token along the way.
+
+    See :class:`TrieSetSampler` for more details.
+    """
+
     async def sample_set(self, context, draw=sample_dict):
         iter_logws = await self.iter_potential.logw_next(context)
         item_ws = await self.trie_executor.weight_sum(iter_logws.exp().weights)
@@ -134,7 +188,27 @@ class EagerSetSampler(TrieSetSampler):
 
 
 class TopKSetSampler(TrieSetSampler):
+    """
+    TopKSetSampler is a specialized sampler that lazily enumerates the top K tokens in the target distribution,
+    and samples an additional "wildcard" token to ensure absolute continuity.
+
+    See :class:`TrieSetSampler` for more details.
+
+    Warning:
+        This sampler is not guaranteed to be correct if the item_potential's
+        prefix weights do not monotonically decrease with the length of the context.
+        That is, prefix(x) <= prefix(xy) for all sequences of items x, y.
+    """
+
     def __init__(self, iter_potential, item_potential, K):
+        """
+        Initialize the TopKSetSampler.
+
+        Args:
+            iter_potential (Potential): The potential defined over a vocabulary of iterables.
+            item_potential (Potential): The potential defined over a vocabulary of items.
+            K (int|None): The number of top tokens to enumerate. If None, all tokens are enumerated.
+        """
         if K is not None and K <= 0:
             raise ValueError("K must be greater than 0 or None")
         super().__init__(iter_potential, item_potential)

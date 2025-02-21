@@ -13,10 +13,10 @@ from genlm_control.potential.testing import PotentialTests
 class Potential(ABC, PotentialOps, PotentialTests):
     """Abstract base class for potentials.
 
-    A Potential represents a weighted language over a vocabulary.
+    A Potential represents a weighted language over a vocabulary. Subclasses must minimally implement methods
+    to assess the weight of a sequence as a member of the language (`complete`) and as a prefix of the language (`prefix`).
 
-    Subclasses must minimally implement methods to assess the weight of a sequence as a member of the language (`complete`) and
-    as a prefix of the language (`prefix`).
+    Other methods come with default implementations, but may be overridden by subclasses.
     """
 
     def __init__(self, vocabulary, token_type=None):
@@ -93,12 +93,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         return (await self.batch_score([context]))[0]
 
     async def logw_next(self, context):
-        """Compute the weights each token in the vocabulary and the special EOS token given `context`.
-
-        The log weight of a token x is computed as:
-        $$
-        w(x \mid \text{context}) = \text{score}(\text{context} + x) - \text{prefix}(\text{context})
-        $$
+        """Compute the next-token weights of each token in the vocabulary and the special EOS token given `context`.
 
         Args:
             context (list): Sequence of tokens to condition on.
@@ -119,7 +114,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def logw_next_seq(self, context, extension):
         """Assess the weight of `extension` given `context`.
 
-        `extension` may optionally include the special EOS token at the end.
+        Corresponds to `score([*context, *extension]) - prefix(context)`.
 
         Args:
             context (list): Sequence of tokens to condition on.
@@ -211,7 +206,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def batch_logw_next(self, contexts):
         """Batched equivalent to `logw_next`.
 
-        Computes the log weights for each token in the vocabulary and EOS
+        Computes the next-token weights of each token in the vocabulary and EOS
         given each context in the batch.
 
         Args:
@@ -306,7 +301,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
             default (float, optional): Default log weight. Defaults to -inf.
 
         Returns:
-            (np.array): Array of log weights.
+            (np.array): Array of length `len(self.decode_eos)` filled with `default`.
         """
         return np.full((len(self.decode_eos),), default)
 
@@ -315,7 +310,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         Spawn a fresh instance of the potential.
 
         This method is not required by default, but may be implemented by subclasses
-        to support CPU-parallelism using multiprocessing.
+        to support CPU-parallelism using (`MultiProcPotential`)[genlm_control.potential.multi_proc.MultiProcPotential].
         """
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."

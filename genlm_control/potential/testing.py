@@ -12,11 +12,12 @@ class PotentialTests:
     - logw_next consistency: Verifies that token-level log weights are consistent with
       prefix and complete scores.
     - Autoregressive factorization: Validates that complete scores factor correctly as
-      a sum of log token weights.
+      a sum of log token weights (with an additional correction term corresponding to the
+      prefix weight of the empty sequence).
     - Batch consistency: Ensures batch operations produce identical results to
       their non-batch counterparts.
 
-    All Potential instances inherit from this class to gain access to these
+    All Potential instances inherit from this class and thus automatically gain access to these
     testing utilities.
     """
 
@@ -36,10 +37,12 @@ class PotentialTests:
         """
         Assert that logw_next is consistent with prefix and complete.
 
-        For context $x_1, \ldots, x_n$, this checks (in log space) whether:
-        $$
-        \\texttt{logw_next}(x_i \mid x_{<i}) = \\texttt{score}(x_{1:i}) - \\texttt{prefix}(x_{<i})
-        $$
+        For context xs, this checks (in log space) whether:
+
+        ```
+        logw_next(x | xs) = score(xs + x) - prefix(xs)
+        ```
+        for x in the vocabulary or `EOS`.
 
         Args:
             context (list[bytes]): Context to test.
@@ -90,10 +93,11 @@ class PotentialTests:
         """
         Assert that complete factors as an autoregressive sum of logw_nexts.
 
-        For context $x_1, \\ldots, x_n$, this checks (in log space) whether:
-        $$
-        \\texttt{complete}(x_1, \\ldots, x_n) = -\\texttt{prefix}(\epsilon) + \\texttt{logw_next}(x_{1:n})[EOS] + \\sum_{i=1}^n \\texttt{logw_next}(x_{<i})[x_i]
-        $$
+        For context xs, this checks (in log space) whether:
+        ```
+        complete(xs) - prefix(epsilon) = logw_next(EOS | xs) + sum_{i=1}^{|xs|} logw_next(xs_i | xs_{<i})
+        ```
+        where epsilon is the empty sequence.
 
         Args:
             context (list[bytes]): Context to test.

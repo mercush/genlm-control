@@ -12,6 +12,21 @@ class Request(NamedTuple):
 
 
 class AutoBatchedPotential(Potential):
+    """
+    AutoBatchedPotential is a wrapper around a Potential that enables automatic batching of concurrent requests.
+
+    This class manages a background loop that collects concurrent requests to instance methods
+    (`complete`, `prefix`, `score`, `logw_next`, `logw_next_seq`) and batches them together before
+    delegating to the corresponding batch methods of the underlying potential
+    (`batch_complete`, `batch_prefix`, `batch_score`, `batch_logw_next`, `batch_logw_next_seq`).
+
+    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+
+    Attributes:
+        potential (Potential): The underlying potential instance that is being wrapped.
+        background_loop (AsyncBatchLoop): An asynchronous loop that manages batch requests.
+    """
+
     def __init__(self, potential):
         self.potential = potential
         self.background_loop = AsyncBatchLoop(potential)

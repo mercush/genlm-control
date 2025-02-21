@@ -1,6 +1,6 @@
 from .base import Potential as Potential
 from .autobatch import AutoBatchedPotential
-from .mp import MPPotential
+from .multi_proc import MultiProcPotential
 from .operators import PotentialOps
 from .product import Product
 from .coerce import Coerced
@@ -18,6 +18,6 @@ __all__ = [
     "WFSA",
     "BoolFSA",
     "AutoBatchedPotential",
-    "MPPotential",
+    "MultiProcPotential",
     "Coerced",
 ]
