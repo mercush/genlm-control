@@ -69,6 +69,7 @@ class TrieSetSampler(SetSampler):
         self.leaf_to_token_id = {
             leaf: self.target.encode_eos[token]
             for token, leaf in self.trie.word2leaf.items()
+            if token in self.target.decode_eos
         }
 
     async def sample_set(self, context):
