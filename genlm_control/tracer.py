@@ -5,28 +5,8 @@ from arsenal.maths import sample
 from graphviz import Digraph
 
 from genlm_grammar import Float
-from genlm_grammar.util import format_table
 
 import numpy as np
-
-
-class generation_tree:
-    def __init__(self, lm, remaining_mass=0.0, **opts):
-        tracer = TraceSWOR()
-        D = Float.chart()
-        while tracer.root.mass > remaining_mass:
-            with tracer:
-                s, p = lm.sample(draw=tracer, **opts)
-                D[s] += p
-        D = Float.chart((k, D[k]) for k in sorted(D))
-        self.D = D
-        self.tracer = tracer
-
-    def _repr_html_(self):
-        return format_table([[self.D, self.tracer]])
-
-    def __repr__(self):
-        return str(self.D) + str(self.tracer)
 
 
 def separate_keys_vals(x):

@@ -4,6 +4,7 @@ import numpy as np
 from typing import NamedTuple
 from arsenal.maths import logsumexp
 
+from genlm_control.constant import EOS
 from genlm_control.potential.base import Potential
 from genlm_backend.llm import AsyncVirtualLM, AsyncTransformer, MockAsyncLM
 

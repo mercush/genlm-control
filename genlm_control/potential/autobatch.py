@@ -35,22 +35,22 @@ class AutoBatchedPotential(Potential):
 
     async def complete(self, context):
         return await self.background_loop.queue_request(
-            "batch_complete", lambda contexts: ([*contexts[0], context],)
+            "batch_complete", lambda args: ([*args[0], context],)
         )
 
     async def prefix(self, context):
         return await self.background_loop.queue_request(
-            "batch_prefix", lambda contexts: ([*contexts[0], context],)
+            "batch_prefix", lambda args: ([*args[0], context],)
         )
 
     async def score(self, context):
         return await self.background_loop.queue_request(
-            "batch_score", lambda contexts: ([*contexts[0], context],)
+            "batch_score", lambda args: ([*args[0], context],)
         )
 
     async def logw_next(self, context):
         return await self.background_loop.queue_request(
-            "batch_logw_next", lambda contexts: ([*contexts[0], context],)
+            "batch_logw_next", lambda args: ([*args[0], context],)
         )
 
     async def logw_next_seq(self, context, extension):

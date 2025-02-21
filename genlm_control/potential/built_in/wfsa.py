@@ -29,6 +29,7 @@ class WFSA(Potential):
         self.wfsa = wfsa
         if wfsa.R is not Float:
             raise ValueError("Float semiring is required for WFSA potentials")
+        self.cache = {(): wfsa.epsremove.start}
         super().__init__(vocabulary=list(self.wfsa.alphabet))
 
     @classmethod
@@ -55,16 +56,25 @@ class WFSA(Potential):
             wfsa = wfsa.to_bytes()
         return cls(wfsa=wfsa)
 
-    def _consume(self, bs, start=None):
+    def _consume(self, bs):
+        # XXX implement cache eviction
+        bs = tuple(bs)
+
+        try:
+            return self.cache[bs]
+        except KeyError:
+            pass
+
         wfsa = self.wfsa.epsremove
-        prev = start or wfsa.start
-        for b in bs:
-            curr = wfsa.R.chart()
-            for i in prev:
-                for j, w in wfsa.arcs(i, b):
-                    curr[j] += prev[i] * w
-            prev = curr
-        return prev
+        curr = wfsa.R.chart()
+        prev = self._consume(bs[:-1])
+        for i in prev:
+            for j, w in wfsa.arcs(i, bs[-1]):
+                curr[j] += prev[i] * w
+
+        self.cache[bs] = curr
+
+        return curr
 
     async def complete(self, context):
         """
@@ -140,6 +150,9 @@ class WFSA(Potential):
     def spawn(self):
         cls = type(self)
         return cls(wfsa=self.wfsa)
+
+    def clear_cache(self):
+        self.cache = {(): self.wfsa.epsremove.start}
 
 
 class BoolFSA(WFSA):
