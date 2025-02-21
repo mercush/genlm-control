@@ -42,11 +42,11 @@ class TokenSampler(SubModel):
 class DirectTokenSampler(TokenSampler):
     """Samples individual tokens directly from a potential's logw_next function.
 
-    Samples are properly weighted with respect to the potential.logw_next(token | context).
+    Samples are properly weighted with respect to `potential.logw_next(token | context)`.
 
     Args:
         potential (Potential): The potential function to sample from
-        draw: The sampling function to use (defaults to sample_dict)
+        draw (callable, optional): The sampling function to use (defaults to sample_dict)
     """
 
     def __init__(self, potential, draw=sample_dict):
@@ -62,11 +62,11 @@ class DirectTokenSampler(TokenSampler):
 class SetTokenSampler(TokenSampler):
     """Samples individual tokens by sampling a set of tokens and then selecting one.
 
-    Samples are properly weighted with respect to the set sampler's target.
+    Samples are properly weighted with respect to `set_sampler.target.logw_next(token | context)`.
 
     Args:
         set_sampler (SetSampler): The set sampler to sample from
-        draw: The sampling function to use (defaults to sample_dict)
+        draw (callable, optional): The sampling function to use (defaults to sample_dict)
     """
 
     def __init__(self, set_sampler, draw=sample_dict):

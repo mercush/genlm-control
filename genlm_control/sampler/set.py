@@ -52,7 +52,7 @@ class TrieSetSampler(SetSampler):
     This sampler is designed to work with two types of potentials: a potential over a vocabulary of iterables and
     a potential over a vocabulary of items which are the elements of the iterables (e.g., byte sequences and ints, strings and chars, etc.).
 
-    The target distribution is defined as:
+    The target with respect to which the set's weights are computed is:
 
     ```
         iter_potential * item_potential.coerce(iter_potential, f=lambda context: [item for items in context for item in items])
@@ -99,7 +99,7 @@ class TrieSetSampler(SetSampler):
         """
         Sample a set of tokens given a context.
 
-        Each token should be associated with a log weight that corresponds to:
+        Each token is associated with a log weight that corresponds to:
 
         ```
             target.logw_next(token | context) - log_inclusion_probability

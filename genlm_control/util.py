@@ -45,7 +45,7 @@ class LazyWeights:
             token: The token for which to retrieve the weight.
 
         Returns:
-            float: The weight of the token, or -inf/0 if the token is not found.
+            (float): The weight of the token, or -inf/0 if the token is not found.
         """
         if token not in self.encode:
             return float("-inf") if self.is_log else 0
@@ -80,7 +80,7 @@ class LazyWeights:
         or standard arithmetic otherwise.
 
         Returns:
-            LazyWeights: A new LazyWeights instance with normalized weights.
+            (LazyWeights): A new LazyWeights instance with normalized weights.
         """
         if self.is_log:
             return self.spawn(self.weights - logsumexp(self.weights))
@@ -98,7 +98,7 @@ class LazyWeights:
             other (LazyWeights): The other LazyWeights instance to multiply with.
 
         Returns:
-            LazyWeights: A new LazyWeights instance with multiplied weights.
+            (LazyWeights): A new LazyWeights instance with multiplied weights.
         """
         if self.is_log:
             assert other.is_log
@@ -117,7 +117,7 @@ class LazyWeights:
             other (LazyWeights): The other LazyWeights instance to add.
 
         Returns:
-            LazyWeights: A new LazyWeights instance with added weights.
+            (LazyWeights): A new LazyWeights instance with added weights.
         """
         if self.is_log:
             assert other.is_log
@@ -132,7 +132,7 @@ class LazyWeights:
         Exponentiate the weights. This operation can only be performed when weights are in log space.
 
         Returns:
-            LazyWeights: A new LazyWeights instance with exponentiated weights.
+            (LazyWeights): A new LazyWeights instance with exponentiated weights.
 
         Raises:
             AssertionError: If the weights are not in log space.
@@ -145,7 +145,7 @@ class LazyWeights:
         Take the logarithm of the weights. This operation can only be performed when weights are in regular space.
 
         Returns:
-            LazyWeights: A new LazyWeights instance with logarithmic weights.
+            (LazyWeights): A new LazyWeights instance with logarithmic weights.
 
         Raises:
             AssertionError: If the weights are already in log space.
@@ -161,7 +161,7 @@ class LazyWeights:
         or standard arithmetic otherwise.
 
         Returns:
-            float: The sum of the weights, either in log space or regular space.
+            (float): The sum of the weights, either in log space or regular space.
         """
         if self.is_log:
             return logsumexp(self.weights)
@@ -177,7 +177,7 @@ class LazyWeights:
             log (bool, optional): Indicates if the new weights are in log space. Defaults to None.
 
         Returns:
-            LazyWeights: A new LazyWeights instance.
+            (LazyWeights): A new LazyWeights instance.
         """
         if log is None:
             log = self.is_log
@@ -193,7 +193,7 @@ class LazyWeights:
             top (int, optional): The number of top weights to materialize. Defaults to None.
 
         Returns:
-            Chart: A chart representation of the weights.
+            (Chart): A chart representation of the weights.
         """
         weights = self.weights
         if top is not None:
