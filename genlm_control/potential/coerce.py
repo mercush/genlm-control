@@ -2,9 +2,34 @@ from genlm_control.potential import Potential
 
 
 class Coerced(Potential):
-    """Represents a potential coerced to operate on another vocabulary."""
+    """
+    Coerce a potential to operate on another vocabulary.
+
+    This class allows a potential to be adapted to work with a different set of tokens,
+    defined by a target vocabulary and coersion function.
+
+    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+    Each method delegates to the corresponding method of the underlying potential, but first
+    maps any input token sequences from the target vocabulary to the original potential's vocabulary
+    using the coercion function.
+
+    Attributes:
+        potential (Potential): The original potential instance that is being coerced.
+        f (callable): A function that maps sequences of tokens from the target vocabulary to the original potential's vocabulary.
+    """
 
     def __init__(self, potential, target_vocab, f):
+        """
+        Initialize a Coerced potential.
+
+        Args:
+            potential (Potential): The original potential instance that is being coerced.
+            target_vocab (list): The target vocabulary that the potential will operate on.
+            f (callable): A function that maps sequences of tokens from the target vocabulary to the original potential's vocabulary.
+
+        Raises:
+            ValueError: If no valid tokens are found in the target vocabulary that can be mapped to the original potential's vocabulary.
+        """
         self.potential = potential
         self.f = f
 

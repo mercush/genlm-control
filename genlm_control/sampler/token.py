@@ -1,7 +1,8 @@
+from hfppl import SubModel
 from arsenal.maths import sample_dict, logsumexp
 
 
-class TokenSampler:
+class TokenSampler(SubModel):
     """Base class for sampling a token from a potential's vocabulary.
 
     Args:
@@ -10,70 +11,69 @@ class TokenSampler:
         draw: The sampling function to use
     """
 
-    def __init__(self, target):
+    def __init__(self, target, unit_type, draw):
         super().__init__()
         self.target = target
+        self.unit_type = unit_type
+        self.draw = draw
 
     async def sample(self, context, draw=sample_dict):
         raise NotImplementedError("Subclasses must implement sample method")
+
+    async def forward(self):
+        token, logw = await self.sample(self.parent.context, draw=self.draw)
+        self.parent.score(logw)
+        return token
 
     async def trace_swor(self, context):
         from genlm_control.tracer import TraceSWOR
 
         tracer = TraceSWOR()
-        logws = self.target.alloc_logws()
+        logP = self.target.alloc_logws()
         while tracer.root.mass > 0:
             with tracer:
-                token, logw, logp = await self.sample(context, draw=tracer)
+                token, logw = await self.sample(context, draw=tracer)
                 token_id = self.target.encode_eos[token]
-                logws[token_id] = logsumexp([logws[token_id], logw + logp])
+                logP[token_id] = logsumexp([logP[token_id], logw])
 
-        return self.target.make_lazy_weights(logws)
-
-    async def cleanup(self):
-        pass
+        return self.target.make_lazy_weights(logP)
 
 
 class DirectTokenSampler(TokenSampler):
     """Samples individual tokens directly from a potential's logw_next function.
 
-    Samples are properly weighted with respect to the potential.
+    Samples are properly weighted with respect to the potential.logw_next(token | context).
 
     Args:
         potential (Potential): The potential function to sample from
         draw: The sampling function to use (defaults to sample_dict)
     """
 
-    def __init__(self, potential):
-        super().__init__(target=potential)
+    def __init__(self, potential, draw=sample_dict):
+        super().__init__(target=potential, unit_type=potential.token_type, draw=draw)
         self.potential = potential
 
     async def sample(self, context, draw=sample_dict):
         logws = await self.potential.logw_next(context)
-        logps = logws.normalize()
-        token = draw(logps.exp().materialize())
-        return token, logws.sum(), logps[token]
+        token = draw(logws.normalize().exp().materialize())
+        return token, logws.sum()
 
 
 class SetTokenSampler(TokenSampler):
     """Samples individual tokens by sampling a set of tokens and then selecting one.
 
-    Samples are properly weighted with respect to the set sampler's target potential.
+    Samples are properly weighted with respect to the set sampler's target.
 
     Args:
         set_sampler (SetSampler): The set sampler to sample from
         draw: The sampling function to use (defaults to sample_dict)
     """
 
-    def __init__(self, set_sampler):
-        super().__init__(set_sampler.target)
+    def __init__(self, set_sampler, draw=sample_dict):
+        super().__init__(set_sampler.target, set_sampler.token_type, draw=draw)
         self.set_sampler = set_sampler
 
     async def sample(self, context, draw=sample_dict):
-        logws, logp_set = await self.set_sampler.sample_set(context, draw=draw)
-        logps = logws.normalize()
-        token = draw(logps.exp().materialize())
-        return token, logws.sum(), logp_set + logps[token]
-
-    async def cleanup(self):
-        await self.set_sampler.cleanup()
+        logws = await self.set_sampler.sample_set(context)
+        token = draw(logws.normalize().exp().materialize())
+        return token, logws.sum()

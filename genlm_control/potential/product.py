@@ -1,11 +1,45 @@
 import asyncio
+import warnings
 from genlm_control.potential.base import Potential
 
 
 class Product(Potential):
-    """Unnormalized product of two potentials. Since a Product is a Potential, these can nest."""
+    """
+    Combine two potential instances via element-wise multiplication (sum in log space).
+
+    This class creates a new potential that is the element-wise product of two potentials.
+    For example,
+    ```
+    prefix(xs) = p1.prefix(xs) + p2.prefix(xs)
+    ```
+    and
+    ```
+    logw_next(x | xs) = p1.logw_next(x | xs) + p2.logw_next(x | xs)
+    ```
+
+    The new potential's vocabulary is the intersection of the two potentials' vocabularies.
+
+    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential],
+    see there for method documentation.
+
+    Attributes:
+        p1 (Potential): The first potential instance.
+        p2 (Potential): The second potential instance.
+        token_type (str): The type of tokens that this product potential operates on.
+        decode (list): The common vocabulary shared between the two potentials.
+
+    Warning:
+        Be careful when taking products of potentials with minimal vocabulary overlap.
+        The resulting potential will only operate on tokens present in both vocabularies.
+    """
 
     def __init__(self, p1, p2):
+        """Initialize a Product potential.
+
+        Args:
+            p1 (Potential): First potential
+            p2 (Potential): Second potential
+        """
         self.p1 = p1
         self.p2 = p2
 
@@ -20,6 +54,19 @@ class Product(Potential):
         common_vocab = list(set(p1.decode) & set(p2.decode))
         if not common_vocab:
             raise ValueError("Potentials in product must share a common vocabulary")
+
+        # Check for small vocabulary overlap
+        threshold = 0.1
+        for potential, name in [(p1, "p1"), (p2, "p2")]:
+            overlap_ratio = len(common_vocab) / len(potential.decode)
+            if overlap_ratio < threshold:
+                warnings.warn(
+                    f"Common vocabulary ({len(common_vocab)} tokens) is less than {threshold * 100}% "
+                    f"of {name}'s ({p1!r}) vocabulary ({len(potential.decode)} tokens). "
+                    "This Product potential only operates on this relatively small subset of tokens.",
+                    RuntimeWarning,
+                )
+
         super().__init__(common_vocab, token_type=self.token_type)
 
         # For fast products of weights

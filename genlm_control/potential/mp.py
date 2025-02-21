@@ -5,9 +5,24 @@ from genlm_control.potential.base import Potential
 
 
 class MPPotential(Potential):
-    """A Potential that adds parallel processing capabilities to any base Potential implementation."""
+    """A Potential that adds parallel processing capabilities to any base Potential implementation.
+
+    Creates a process pool of worker processes, each containing an instance of the potential.
+
+    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+    Each method delegates to the corresponding method of the underlying potential instances,
+    distributing work across multiple processes for improved performance.
+    """
 
     def __init__(self, potential_factory, factory_args, num_workers=2):
+        """
+        Initialize the MPPotential.
+
+        Args:
+            potential_factory (callable): A factory function that creates a potential instance.
+            factory_args (tuple): Arguments to pass to the potential factory.
+            num_workers (int): The number of worker processes to spawn. Each will contain an instance of the potential.
+        """
         self.num_workers = num_workers
         self.executor = ProcessPoolExecutor(
             max_workers=num_workers,

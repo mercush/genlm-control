@@ -8,7 +8,7 @@ class PotentialOps:
     """
 
     def __mul__(self, other):
-        """Take the product of two potentials operating on the same token type.
+        """Take the product of two potentials.
 
         Args:
             other (Potential): Another potential instance to take the product with.
@@ -28,7 +28,7 @@ class PotentialOps:
 
         Args:
             other (Potential): The potential instance whose vocabulary will be used.
-            f: function mapping tokens from self's vocab to other's vocab
+            f (callable): A function mapping tokens from self's vocab to other's vocab
 
         Returns:
             (Coerced): A Potential that operates on the vocabulary of `other`.
@@ -41,8 +41,7 @@ class PotentialOps:
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.
 
         Returns:
-            (AutoBatchedPotential): A new potential instance that wraps the current potential and
-            automatically batches concurrent requests to the instance methods.
+            (AutoBatchedPotential): A new potential instance that wraps the current potential and automatically batches concurrent requests to the instance methods.
         """
         from genlm_control.potential.autobatch import AutoBatchedPotential
 
@@ -56,8 +55,7 @@ class PotentialOps:
             spawn_args (tuple): The positional arguments to pass to the potential's `spawn` method.
 
         Returns:
-            (MPPotential) A new potential instance that wraps the current potential and uses multiprocessing to parallelize
-            operations.
+            (MPPotential): A new potential instance that wraps the current potential and uses multiprocessing to parallelize operations.
 
         Note:
             For this method to be used, the potential must implement a picklable `spawn` method.
