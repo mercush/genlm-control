@@ -4,7 +4,7 @@ from genlm_control.potential import (
     Coerced,
     Product,
     AutoBatchedPotential,
-    MPPotential,
+    MultiProcPotential,
 )
 
 
@@ -83,7 +83,7 @@ async def test_to_autobatched(p1):
 async def test_to_multiprocess(p1):
     num_workers = 2
     have = p1.to_multiprocess(num_workers=num_workers)
-    want = MPPotential(p1.spawn, (), num_workers=num_workers)
+    want = MultiProcPotential(p1.spawn, (), num_workers=num_workers)
     assert have.decode == want.decode
 
 

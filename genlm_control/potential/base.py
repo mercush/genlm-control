@@ -310,7 +310,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         Spawn a fresh instance of the potential.
 
         This method is not required by default, but may be implemented by subclasses
-        to support CPU-parallelism using `MPPotential`.
+        to support CPU-parallelism using (`MultiProcPotential`)[genlm_control.potential.multi_proc.MultiProcPotential].
         """
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."
