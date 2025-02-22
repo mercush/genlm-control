@@ -1,4 +1,10 @@
 from genlm_control.potential import Potential
+from itertools import chain
+import asyncio
+
+
+def flatten(context):
+    return list(chain.from_iterable(context))
 
 
 class Coerced(Potential):
@@ -69,6 +75,9 @@ class Coerced(Potential):
 
     async def batch_prefix(self, contexts):
         return await self.potential.batch_prefix(contexts=self._batch_f(contexts))
+
+    async def batch_logw_next(self, contexts):
+        return await asyncio.gather(*[self.logw_next(context) for context in contexts])
 
     async def batch_logw_next_seq(self, context, extensions):
         return await self.potential.batch_logw_next_seq(

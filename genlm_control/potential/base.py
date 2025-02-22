@@ -1,7 +1,6 @@
 import asyncio
 import numpy as np
 from abc import ABC, abstractmethod
-from arsenal.maths import logsumexp
 
 from genlm_control.constant import EOS
 from genlm_control.util import LazyWeights
@@ -224,7 +223,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
         num_contexts = len(contexts)
         vocab_size = len(self.decode)
 
-        extended_contexts = [[*context, x] for context in contexts for x in self.decode]
+        # Slow!!
+        extended_contexts = [
+            list(context) + [x] for context in contexts for x in self.decode
+        ]
 
         complete_scores, all_prefix_scores = await asyncio.gather(
             self.batch_complete(contexts),
@@ -315,74 +317,3 @@ class Potential(ABC, PotentialOps, PotentialTests):
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."
         )
-
-    async def sample(self, context=None, max_tokens=float("inf")):
-        """Generate properly weighted samples from the potential.
-
-        Args:
-            context (list, optional): Initial context. Defaults to None.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to float("inf").
-
-        Returns:
-            list: Properly weighted sample from the potential.
-
-        Raises:
-            ValueError: If max_tokens < 1
-        """
-        if max_tokens < 1:
-            raise ValueError("max_tokens must be at least 1")
-
-        xs, ws, ps = await self.batch_sample(context, max_tokens, 1)
-        return xs[0], ws[0], ps[0]
-
-    async def batch_sample(self, context=None, max_tokens=float("inf"), n_samples=1):
-        """Generate properly weighted samples from the potential.
-
-        Args:
-            context (list, optional): Initial context. Defaults to None.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to float("inf").
-            n_samples (int, optional): Number of samples to generate. Defaults to 1.
-
-        Returns:
-            tuple[list[list], np.ndarray]: Tuple of (sequences, log weights), where sequences is a list of
-                token sequences and log weights is an array of corresponding log weights.
-
-        Raises:
-            ValueError: If n_samples < 1 or max_tokens < 1
-        """
-        if n_samples < 1:
-            raise ValueError("n_samples must be at least 1")
-        if max_tokens < 1:
-            raise ValueError("max_tokens must be at least 1")
-
-        context = [] if context is None else list(context)
-        contexts = [context.copy() for _ in range(n_samples)]
-
-        empty_w = await self.prefix([])
-        log_ws = np.zeros(n_samples, dtype=np.float64) + empty_w
-        log_ps = np.zeros(n_samples, dtype=np.float64)
-        active = np.ones(n_samples, dtype=bool)
-
-        while np.any(active):
-            active_idxs = np.where(active)[0]
-            logw_nexts = await self.batch_logw_next([contexts[i] for i in active_idxs])
-
-            for i, logw_next in enumerate(logw_nexts):
-                idx = active_idxs[i]
-                W = logw_next.weights
-                Z = logsumexp(W)
-                p_next = np.exp(W - Z)
-
-                # Handle numerical precision issues
-                p_next = p_next / np.sum(p_next)
-
-                next_token_idx = np.random.choice(range(len(self.decode_eos)), p=p_next)
-                next_token = self.decode_eos[next_token_idx]
-                contexts[idx].append(next_token)
-                log_ws[idx] += Z
-                log_ps[idx] += np.log(p_next[next_token_idx])
-
-                if next_token is EOS or len(contexts[idx]) >= max_tokens:
-                    active[idx] = False
-
-        return contexts, log_ws, log_ps
