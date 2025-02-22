@@ -87,45 +87,6 @@ class LazyWeights:
         else:
             return self.spawn(self.weights / np.sum(self.weights))
 
-    def __mul__(self, other):
-        """
-        Multiply weights with another LazyWeights instance.
-
-        Args:
-            other (LazyWeights): The other LazyWeights instance to multiply with.
-
-        Returns:
-            (LazyWeights): A new LazyWeights instance with multiplied weights.
-        """
-        assert self.decode == other.decode
-        if self.is_log:
-            assert other.is_log
-            return self.spawn(self.weights + other.weights)
-        else:
-            return self.spawn(self.weights * other.weights)
-
-    def __add__(self, other):
-        """
-        Add weights from another LazyWeights instance.
-
-        Addition is performed using log-space arithmetic when weights are logarithmic,
-        or standard arithmetic otherwise.
-
-        Args:
-            other (LazyWeights): The other LazyWeights instance to add.
-
-        Returns:
-            (LazyWeights): A new LazyWeights instance with added weights.
-        """
-        assert self.decode == other.decode
-        if self.is_log:
-            assert other.is_log
-            max_ab = np.maximum(self.weights, other.weights)
-            weights = max_ab + np.log1p(np.exp(-np.abs(self.weights - other.weights)))
-            return self.spawn(weights)
-        else:
-            return self.spawn(self.weights + other.weights)
-
     def exp(self):
         """
         Exponentiate the weights. This operation can only be performed when weights are in log space.
