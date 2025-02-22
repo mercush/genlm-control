@@ -87,46 +87,6 @@ class LazyWeights:
         else:
             return self.spawn(self.weights / np.sum(self.weights))
 
-    def __mul__(self, other):
-        """
-        Multiply weights with another LazyWeights instance.
-
-        Multiplication is performed using log-space arithmetic when weights are logarithmic,
-        or standard arithmetic otherwise.
-
-        Args:
-            other (LazyWeights): The other LazyWeights instance to multiply with.
-
-        Returns:
-            (LazyWeights): A new LazyWeights instance with multiplied weights.
-        """
-        if self.is_log:
-            assert other.is_log
-            return self.spawn(self.weights + other.weights)
-        else:
-            return self.spawn(self.weights * other.weights)
-
-    def __add__(self, other):
-        """
-        Add weights from another LazyWeights instance.
-
-        Addition is performed using log-space arithmetic when weights are logarithmic,
-        or standard arithmetic otherwise.
-
-        Args:
-            other (LazyWeights): The other LazyWeights instance to add.
-
-        Returns:
-            (LazyWeights): A new LazyWeights instance with added weights.
-        """
-        if self.is_log:
-            assert other.is_log
-            max_ab = np.maximum(self.weights, other.weights)
-            weights = max_ab + np.log1p(np.exp(-np.abs(self.weights - other.weights)))
-            return self.spawn(weights)
-        else:
-            return self.spawn(self.weights + other.weights)
-
     def exp(self):
         """
         Exponentiate the weights. This operation can only be performed when weights are in log space.
@@ -282,3 +242,35 @@ def load_async_trie(V, backend=None, **kwargs):
     from genlm_backend.trie import AsyncTokenCharacterTrie
 
     return AsyncTokenCharacterTrie(load_trie(V, backend, **kwargs))
+
+
+def fast_sample_logprobs(logprobs: np.ndarray, size: int = 1) -> np.ndarray:
+    """Sample indices from an array of log probabilities using the Gumbel-max trick.
+
+    Args:
+        logprobs: Array of log probabilities
+        size: Number of samples to draw
+
+    Returns:
+        Array of sampled indices
+
+    Note:
+        This is much faster than np.random.choice for large arrays since it avoids
+        normalizing probabilities and uses vectorized operations.
+    """
+    noise = -np.log(-np.log(np.random.random((size, len(logprobs)))))
+    return (logprobs + noise).argmax(axis=1)
+
+
+def fast_sample_lazyweights(lazyweights):
+    """Sample a token from a LazyWeights instance using the Gumbel-max trick.
+
+    Args:
+        lazyweights: LazyWeights instance
+
+    Returns:
+        Sampled token
+    """
+    assert lazyweights.is_log
+    token_id = fast_sample_logprobs(lazyweights.weights, size=1)[0]
+    return lazyweights.decode[token_id]
