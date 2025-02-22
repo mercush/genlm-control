@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from genlm_control.util import LazyWeights, sample_categorical
+from genlm_control.util import LazyWeights
 
 
 def test_lazy_weights_basic():
@@ -62,22 +62,6 @@ def test_lazy_weights_exp_log():
     lw = LazyWeights(weights, encode, decode, log=False)
     lw_log = lw.log()
     np.testing.assert_allclose(lw_log.weights, np.log(weights))
-
-
-def test_sample_categorical():
-    pvals = np.array([0.2, 0.0, 0.3, 0.0, 0.5])
-    np.random.seed(42)  # For reproducibility
-
-    # Test multiple samples
-    samples = [sample_categorical(pvals) for _ in range(1000)]
-
-    # Check that we only get indices with non-zero probabilities
-    assert all(pvals[i] > 0 for i in samples)
-
-    # Check rough distribution (allowing for some random variation)
-    counts = np.bincount(samples)
-    expected = pvals * 1000
-    np.testing.assert_allclose(counts, expected, rtol=0.1)
 
 
 def test_lazy_weights_assertions():

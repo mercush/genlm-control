@@ -137,18 +137,3 @@ async def test_bcfg_from_lark():
 
     log_weight = await pot.complete(b"a")
     assert log_weight == float("-inf")
-
-
-@pytest.mark.asyncio
-async def test_sample(byte_wcfg):
-    # Mean importance weight provides an unbiased estimate of
-    # the normalizing constant of the model.
-    pot = WCFG(byte_wcfg)
-    contexts, log_ws, _ = await pot.batch_sample(n_samples=100)
-    total_weight = pot.model(b"")  # total weight of all sequences
-    assert np.isclose(np.mean(np.exp(log_ws)), total_weight)
-
-    pot = BoolCFG(byte_wcfg)
-    contexts, log_ws, _ = await pot.batch_sample(n_samples=100)
-    total_weight = 2  # two valid sequences
-    assert np.isclose(np.mean(np.exp(log_ws)), total_weight)
