@@ -25,6 +25,7 @@ jobs:
         run: |
           python -m venv venv
           source venv/bin/activate
+          pip install git+https://github.com/chi-collective/genlm-backend.git
           pip install -e .[test]
 
         #  coverage run --source=genlm_control -m pytest --benchmark-disable
