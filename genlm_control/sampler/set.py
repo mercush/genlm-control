@@ -143,7 +143,9 @@ class EagerSetSampler(TrieSetSampler):
     See :class:`TrieSetSampler` for more details.
     """
 
-    async def sample_set(self, context, draw=sample_dict):
+    async def sample_set(self, context, draw=None):
+        if draw is None:
+            draw = sample_dict
         iter_logws = await self.iter_potential.logw_next(context)
         item_ws = await self.trie_executor.weight_sum(iter_logws.exp().weights)
 
@@ -217,7 +219,9 @@ class TopKSetSampler(TrieSetSampler):
         super().__init__(iter_potential, item_potential)
         self.K = K
 
-    async def sample_set(self, context, draw=sample_dict):
+    async def sample_set(self, context, draw=None):
+        if draw is None:
+            draw = sample_dict
         iter_logws = await self.iter_potential.logw_next(context)
         max_logws = await self.trie_executor.weight_max(iter_logws.weights)
 
