@@ -44,6 +44,9 @@ class SetSampler(ABC):
 
         return self.target.make_lazy_weights(logws)
 
+    async def cleanup(self):
+        pass
+
 
 class TrieSetSampler(SetSampler):
     """

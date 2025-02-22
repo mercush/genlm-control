@@ -91,15 +91,13 @@ class LazyWeights:
         """
         Multiply weights with another LazyWeights instance.
 
-        Multiplication is performed using log-space arithmetic when weights are logarithmic,
-        or standard arithmetic otherwise.
-
         Args:
             other (LazyWeights): The other LazyWeights instance to multiply with.
 
         Returns:
             (LazyWeights): A new LazyWeights instance with multiplied weights.
         """
+        assert self.decode == other.decode
         if self.is_log:
             assert other.is_log
             return self.spawn(self.weights + other.weights)
@@ -119,6 +117,7 @@ class LazyWeights:
         Returns:
             (LazyWeights): A new LazyWeights instance with added weights.
         """
+        assert self.decode == other.decode
         if self.is_log:
             assert other.is_log
             max_ab = np.maximum(self.weights, other.weights)
@@ -282,3 +281,35 @@ def load_async_trie(V, backend=None, **kwargs):
     from genlm_backend.trie import AsyncTokenCharacterTrie
 
     return AsyncTokenCharacterTrie(load_trie(V, backend, **kwargs))
+
+
+def fast_sample_logprobs(logprobs: np.ndarray, size: int = 1) -> np.ndarray:
+    """Sample indices from an array of log probabilities using the Gumbel-max trick.
+
+    Args:
+        logprobs: Array of log probabilities
+        size: Number of samples to draw
+
+    Returns:
+        Array of sampled indices
+
+    Note:
+        This is much faster than np.random.choice for large arrays since it avoids
+        normalizing probabilities and uses vectorized operations.
+    """
+    noise = -np.log(-np.log(np.random.random((size, len(logprobs)))))
+    return (logprobs + noise).argmax(axis=1)
+
+
+def fast_sample_lazyweights(lazyweights):
+    """Sample a token from a LazyWeights instance using the Gumbel-max trick.
+
+    Args:
+        lazyweights: LazyWeights instance
+
+    Returns:
+        Sampled token
+    """
+    assert lazyweights.is_log
+    token_id = fast_sample_logprobs(lazyweights.weights, size=1)[0]
+    return lazyweights.decode[token_id]

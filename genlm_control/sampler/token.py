@@ -1,29 +1,20 @@
-from hfppl import SubModel
-from arsenal.maths import sample_dict, logsumexp
+from arsenal.maths import logsumexp
+from genlm_control.util import fast_sample_lazyweights
 
 
-class TokenSampler(SubModel):
+class TokenSampler:
     """Base class for sampling a token from a potential's vocabulary.
 
     Args:
         target: The potential that samples are properly weighted with respect to.
-        unit_type: The type of unit being sampled
-        draw: The sampling function to use
     """
 
-    def __init__(self, target, unit_type, draw):
+    def __init__(self, target):
         super().__init__()
         self.target = target
-        self.unit_type = unit_type
-        self.draw = draw
 
-    async def sample(self, context, draw=sample_dict):
+    async def sample(self, context, draw):
         raise NotImplementedError("Subclasses must implement sample method")
-
-    async def forward(self):
-        token, logw = await self.sample(self.parent.context, draw=self.draw)
-        self.parent.score(logw)
-        return token
 
     async def trace_swor(self, context):
         from genlm_control.tracer import TraceSWOR
@@ -32,11 +23,14 @@ class TokenSampler(SubModel):
         logP = self.target.alloc_logws()
         while tracer.root.mass > 0:
             with tracer:
-                token, logw = await self.sample(context, draw=tracer)
+                token, logw, logp = await self.sample(context, draw=tracer)
                 token_id = self.target.encode_eos[token]
-                logP[token_id] = logsumexp([logP[token_id], logw])
+                logP[token_id] = logsumexp([logP[token_id], logw + logp])
 
         return self.target.make_lazy_weights(logP)
+
+    async def cleanup(self):
+        pass
 
 
 class DirectTokenSampler(TokenSampler):
@@ -46,17 +40,24 @@ class DirectTokenSampler(TokenSampler):
 
     Args:
         potential (Potential): The potential function to sample from
-        draw (callable, optional): The sampling function to use (defaults to sample_dict)
     """
 
-    def __init__(self, potential, draw=sample_dict):
-        super().__init__(target=potential, unit_type=potential.token_type, draw=draw)
+    def __init__(self, potential):
+        super().__init__(target=potential)
         self.potential = potential
 
-    async def sample(self, context, draw=sample_dict):
+    async def sample(self, context, draw=None):
         logws = await self.potential.logw_next(context)
-        token = draw(logws.normalize().exp().materialize())
-        return token, logws.sum()
+        logps = logws.normalize()
+        if draw is None:
+            # fast sampling from logps using gumbel-max trick
+            token = fast_sample_lazyweights(logps)
+        else:
+            token = draw(logps.exp().materialize())
+        return token, logws.sum(), logps[token]
+
+    async def cleanup(self):
+        pass
 
 
 class SetTokenSampler(TokenSampler):
@@ -66,14 +67,20 @@ class SetTokenSampler(TokenSampler):
 
     Args:
         set_sampler (SetSampler): The set sampler to sample from
-        draw (callable, optional): The sampling function to use (defaults to sample_dict)
     """
 
-    def __init__(self, set_sampler, draw=sample_dict):
-        super().__init__(set_sampler.target, set_sampler.token_type, draw=draw)
+    def __init__(self, set_sampler):
+        super().__init__(set_sampler.target)
         self.set_sampler = set_sampler
 
-    async def sample(self, context, draw=sample_dict):
-        logws = await self.set_sampler.sample_set(context)
-        token = draw(logws.normalize().exp().materialize())
-        return token, logws.sum()
+    async def sample(self, context, draw=None):
+        logws, logp = await self.set_sampler.sample_set(context, draw=draw)
+        logps = logws.normalize()
+        if draw is None:
+            token = fast_sample_lazyweights(logps)
+        else:
+            token = draw(logps.exp().materialize())
+        return token, logws.sum(), logp + logps[token]
+
+    async def cleanup(self):
+        await self.set_sampler.cleanup()
