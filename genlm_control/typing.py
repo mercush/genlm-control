@@ -55,6 +55,9 @@ class Atomic(TokenType):
     def convert(self, value):
         return self.type(value)
 
+    def __repr__(self):
+        return f"Atomic({self.type.__name__})"
+
 
 @dataclass
 class Sequence(TokenType):
@@ -69,6 +72,9 @@ class Sequence(TokenType):
 
     def convert(self, value):
         return tuple(self.element_type.convert(x) for x in value)
+
+    def __repr__(self):
+        return f"Sequence({self.element_type!r})"
 
 
 def infer_type(value):
