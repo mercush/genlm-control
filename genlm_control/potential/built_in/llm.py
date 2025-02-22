@@ -69,13 +69,15 @@ class PromptedLLM(Potential):
         self.prompt_ids = []
 
         if not eos_tokens:
-            eos_tokens = [llm.byte_vocab[self.model.tokenizer.eos_token_id]]
+            self.eos_tokens = [llm.byte_vocab[self.model.tokenizer.eos_token_id]]
+        else:
+            self.eos_tokens = eos_tokens
 
         self.token_maps = TokenMappings.create(
-            decode=llm.byte_vocab, eos_tokens=eos_tokens
+            decode=llm.byte_vocab, eos_tokens=self.eos_tokens
         )
 
-        V = [x for x in self.token_maps.decode if x not in eos_tokens]
+        V = [x for x in self.token_maps.decode if x not in self.eos_tokens]
 
         super().__init__(vocabulary=V)
 
@@ -274,6 +276,4 @@ class PromptedLLM(Potential):
         return f"PromptedLLM(prompt={self.prompt!r})"
 
     def spawn(self):
-        return PromptedLLM(
-            self.model, prompt=self.prompt, eos_tokens=self.token_maps.eos_idxs
-        )
+        return PromptedLLM(self.model, prompt=self.prompt, eos_tokens=self.eos_tokens)
