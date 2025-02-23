@@ -44,48 +44,44 @@ class PromptedLLM(Potential):
 
     This class wraps a language model and allows computing next token probabilities
     conditioned on both a context and a fixed prompt prefix.
-
-    Args:
-        llm (AsyncLM): The language model to use
-        prompt (str|list[int], optional): Optional prompt to use as a prompt prefix for all input contexts
-        eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
-            Defaults to the EOS token of the language model.
     """
 
-    def __init__(self, llm, prompt=None, eos_tokens=None):
-        """
+    def __init__(self, llm, prompt_ids=None, eos_tokens=None):
+        """`
         Initializes the PromptedLLM potential.
 
         Args:
             llm (AsyncLM): The language model to use.
-            prompt (str|list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
+            prompt_ids (list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
+                Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `prompt` or `prompt_ids`.
             eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
-                Defaults to the EOS token of the language model.
+                Defaults to the EOS token of the language model's tokenizer.
 
         Raises:
             ValueError: If any EOS token is not in the language model vocabulary.
         """
         self.model = llm
-        self.prompt_ids = []
+        self.prompt_ids = prompt_ids or []
 
         if not eos_tokens:
-            self.eos_tokens = [llm.byte_vocab[self.model.tokenizer.eos_token_id]]
+            self._eos_tokens = [llm.byte_vocab[self.model.tokenizer.eos_token_id]]
         else:
-            self.eos_tokens = eos_tokens
+            self._eos_tokens = eos_tokens
 
-        self.token_maps = TokenMappings.create(
-            decode=llm.byte_vocab, eos_tokens=self.eos_tokens
+        assert len(set(self._eos_tokens)) == len(self._eos_tokens), (
+            "duplicate eos tokens"
         )
 
-        V = [x for x in self.token_maps.decode if x not in self.eos_tokens]
+        self.token_maps = TokenMappings.create(
+            decode=llm.byte_vocab, eos_tokens=self._eos_tokens
+        )
+
+        V = [x for x in self.token_maps.decode if x not in self._eos_tokens]
 
         super().__init__(vocabulary=V)
 
-        if prompt is not None:
-            self.prompt = prompt
-
     @classmethod
-    def from_name(cls, name, backend=None, eos_tokens=None, prompt=None, **kwargs):
+    def from_name(cls, name, backend=None, eos_tokens=None, prompt_ids=None, **kwargs):
         """Create a language model from a name.
 
         Args:
@@ -95,7 +91,8 @@ class PromptedLLM(Potential):
                 * 'hf' for an `AsyncTransformer`; ideal for CPU usage
                 * 'mock' for a `MockAsyncLM`; ideal for testing.
                 Defaults to 'vllm' if CUDA is available, otherwise 'hf'.
-            prompt (str|list[int], optional): Optional prompt to use as a prompt prefix for all input contexts
+            prompt_ids (list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
+                Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `prompt` or `prompt_ids`.
             **kwargs: Additional arguments passed to AsyncLM constructor
 
         Returns:
@@ -103,50 +100,74 @@ class PromptedLLM(Potential):
         """
         backend = backend or ("vllm" if torch.cuda.is_available() else "hf")
         model = load_model_by_name(name, backend=backend, **kwargs)
-        return cls(model, prompt=prompt, eos_tokens=eos_tokens)
+        return cls(model, prompt_ids=prompt_ids, eos_tokens=eos_tokens)
+
+    @property
+    def eos_tokens(self):
+        return self._eos_tokens
+
+    @eos_tokens.setter
+    def eos_tokens(self, value):
+        raise ValueError(
+            "Cannot reset eos_tokens after initialization. "
+            "Use spawn_new_eos(new_eos_tokens) instead."
+        )
 
     @property
     def prompt(self):
-        """Get the current prompt."""
+        """Get the current prompt as a list of bytes sequences corresponding to the prompt token IDs."""
         if not self.prompt_ids:
             return
         return [self.token_maps.decode[x] for x in self.prompt_ids]
 
-    @prompt.setter
-    def prompt(self, value):
-        """Set the prompt, accepting either string, list of token IDs, or None.
+    def set_prompt_from_str(self, prompt_str):
+        """Set the fixed prompt from a string.
 
-        If setting a string, the prompt will be tokenized using the language model's tokenizer.
+        Modifies `prompt_ids` to be the token IDs of the input prompt according to the language model's tokenizer.
 
         Args:
-            value (Union[str, List[int], None]): The prompt to set.
-                * None: No prompt
-                * str: Tokenized prompt
-                * List[int]: List of token IDs
+            prompt_str (str): The prompt to set.
         """
-        if value is None:
-            self.prompt_ids = []
-        elif isinstance(value, str):
-            if value.endswith(" "):
-                warnings.warn(
-                    "Prompt ends with whitespace, which may affect tokenization. "
-                    "Consider removing trailing whitespace.",
-                    stacklevel=2,
-                )
-            self.prompt_ids = self.model.tokenizer.encode(value)
-        elif isinstance(value, (list, tuple)) and all(
-            isinstance(x, int) for x in value
-        ):
-            self.prompt_ids = list(value)
-        else:
+        if not isinstance(prompt_str, str):
             raise ValueError(
-                f"Prompt must be None, a string or a list of token IDs, got {type(value)}"
+                f"Prompt must a string got {type(prompt_str)}. "
+                f"To set the prompt from a list of token IDs, use prompt_ids."
             )
 
-    def tokenize(self, context_str):
-        """Tokenize a string to a list of bytes, each corresponding to a token in the vocabulary.
+        if prompt_str.endswith(" "):
+            warnings.warn(
+                "Prompt ends with whitespace, which may affect tokenization. "
+                "Consider removing trailing whitespace.",
+                stacklevel=2,
+            )
 
-        Tokenization is handled by the language model's tokenizer.
+        self.prompt_ids = self.model.tokenizer.encode(prompt_str)
+
+    def encode_tokens(self, tokens):
+        """Encode a list of byte tokens to a list of token IDs.
+
+        Args:
+            tokens (list[bytes]): List of byte tokens to encode
+
+        Returns:
+            List of token IDs
+
+        Raises:
+            ValueError: If any token is not in the vocabulary
+        """
+        try:
+            return [self.token_maps.encode[x] for x in tokens]
+        except KeyError as e:
+            raise ValueError(f"Token {e.args[0]} not in vocabulary") from e
+
+    def decode_tokens(self, ids):
+        """Decode a list of token IDs to a list of byte tokens."""
+        return [self.token_maps.decode[x] for x in ids]
+
+    def tokenize(self, context_str):
+        """Tokenize a string to a list of `bytes` objects, each corresponding to a token in the vocabulary.
+
+        Uses the language model's tokenizer to map to token IDs, and then decodes the token IDs to bytes.
 
         Args:
             context_str (str): The string to encode
@@ -154,17 +175,7 @@ class PromptedLLM(Potential):
         Returns:
             (List[bytes]): The encoded string
         """
-        return [
-            self.token_maps.decode[x] for x in self.model.tokenizer.encode(context_str)
-        ]
-
-    def encode_tokens(self, tokens):
-        """Encode a list of byte tokens to a list of token IDs."""
-        return [self.token_maps.encode[x] for x in tokens]
-
-    def decode_tokens(self, ids):
-        """Decode a list of token IDs to a list of byte tokens."""
-        return [self.token_maps.decode[x] for x in ids]
+        return self.decode_tokens(self.model.tokenizer.encode(context_str))
 
     async def log_probability(self, context):
         """
@@ -180,6 +191,9 @@ class PromptedLLM(Potential):
             return 0
 
         context_ids = self.encode_tokens(context)
+        return await self._log_probability(context_ids)
+
+    async def _log_probability(self, context_ids):
         prefixes = [self.prompt_ids + context_ids[:i] for i in range(len(context_ids))]
         log_ps = await self.model.batch_next_token_logprobs(prefixes)
 
@@ -214,24 +228,23 @@ class PromptedLLM(Potential):
         Returns:
             (float): The log probability of the context.
         """
-        logp_context = await self.log_probability(context)
-        logw_next = await self.model.next_token_logprobs(
-            self.prompt_ids + self.encode_tokens(context)
-        )
-        logp_eos = torch.logsumexp(logw_next[self.token_maps.eos_idxs], dim=0).item()
+        context_ids = self.encode_tokens(context)
+        logp_context = await self._log_probability(context_ids)
+        logp_next = await self.model.next_token_logprobs(self.prompt_ids + context_ids)
+        logp_eos = torch.logsumexp(logp_next[self.token_maps.eos_idxs], dim=0).item()
         return logp_context + logp_eos
 
     def _process_logw_next(self, logw_next):
         """Process the log probabilities for the next tokens.
 
         This function rearranges the log probabilities such that the end-of-sequence (EOS) token's log probability
-        is moved to the end of the array. This is necessary for downstream code that assumes the EOS token is at the end.
+        is the sum of the log probabilities of `self.eos_tokens`.
 
         Args:
             logw_next (np.array): The log probabilities for the next tokens.
 
         Returns:
-            (LazyWeights|np.array): Processed log probabilities for the next tokens.
+            (LazyWeights): Processed log probabilities for the next tokens.
         """
         # This is ugly, but it's useful for all potentials to adhere to the convention
         # of keeping the EOS token at the end of the weights array.
@@ -276,4 +289,21 @@ class PromptedLLM(Potential):
         return f"PromptedLLM(prompt={self.prompt!r})"
 
     def spawn(self):
-        return PromptedLLM(self.model, prompt=self.prompt, eos_tokens=self.eos_tokens)
+        return PromptedLLM(
+            self.model, prompt_ids=self.prompt_ids, eos_tokens=self._eos_tokens
+        )
+
+    def spawn_new_eos(self, eos_tokens):
+        """
+        Create a new PromptedLLM with a different set of end-of-sequence tokens.
+
+        Args:
+            eos_tokens (list[bytes]): List of tokens to treat as end-of-sequence tokens.
+
+        Returns:
+            (PromptedLLM): A new PromptedLLM with the specified end-of-sequence tokens.
+                The new model will have the same prompt_ids as the original model.
+        """
+        return PromptedLLM(
+            self.model, prompt_ids=self.prompt_ids, eos_tokens=eos_tokens
+        )
