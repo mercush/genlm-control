@@ -45,6 +45,8 @@ async def test_wfsa(float_wfsa):
     await pot.assert_logw_next_consistency(b"")
     await pot.assert_autoreg_fact(b"")
 
+    await pot.assert_batch_consistency([b"", b"ab", b"ac"])
+
 
 @pytest.mark.asyncio
 async def test_wfsa_regex():
@@ -74,6 +76,8 @@ async def test_wfsa_regex():
     await pot.assert_logw_next_consistency(b"")
     await pot.assert_autoreg_fact(b"")
 
+    await pot.assert_batch_consistency([b"", b"ab", b"ac"])
+
 
 @pytest.mark.asyncio
 async def test_bool_fsa(float_wfsa):
@@ -102,3 +106,5 @@ async def test_bool_fsa(float_wfsa):
 
     await pot.assert_logw_next_consistency(b"")
     await pot.assert_autoreg_fact(b"")
+
+    await pot.assert_batch_consistency([b"", b"ab", b"ac"])

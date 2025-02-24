@@ -94,28 +94,6 @@ async def test_mp_batch_logw_next(mp_potential, regular_potential):
         np.testing.assert_array_equal(have.weights, want.weights)
 
 
-@pytest.mark.asyncio
-async def test_mp_logw_next_seq(mp_potential, regular_potential):
-    context = [b"b"]
-    extension = [b"c"]
-
-    have = await mp_potential.logw_next_seq(context, extension)
-    want = await regular_potential.logw_next_seq(context, extension)
-
-    np.testing.assert_array_equal(have, want)
-
-
-@pytest.mark.asyncio
-async def test_mp_batch_logw_next_seq(mp_potential, regular_potential):
-    context = [b"a"]
-    extensions = [[b"c", b"a"], [b"d"], [b"e", b"a", b"g"]]
-    haves = await mp_potential.batch_logw_next_seq(context, extensions)
-    wants = await regular_potential.batch_logw_next_seq(context, extensions)
-
-    for have, want in zip(haves, wants):
-        np.testing.assert_array_equal(have, want)
-
-
 def test_cleanup(mp_potential):
     assert mp_potential.executor is not None
     mp_potential.__del__()

@@ -6,75 +6,50 @@ from genlm_control.potential import Coerced, Potential
 
 
 class MockPotential(Potential):
-    """A simple mock potential for testing the Lifted potential."""
+    def __init__(self, V):
+        super().__init__(V)
 
-    def __init__(self):  # individual bytes
-        super().__init__([b"a"[0], b"b"[0], b"c"[0]])
+    def bytes_to_int(self, byte_seq):
+        return int.from_bytes(byte_seq, byteorder="big")
 
     async def complete(self, context):
-        return len(context)
+        return self.bytes_to_int(context)
 
     async def prefix(self, context):
-        return len(context) / 2
-
-
-@pytest.fixture
-def mock_potential():
-    return MockPotential()
-
-
-@pytest.fixture
-def target_vocab():  # bytes
-    return [b"aa", b"bb", b"aab", b"dd"]
-
-
-@pytest.fixture
-def coerced(mock_potential, target_vocab):
-    def f(seq):
-        return [b for bs in seq for b in bs]
-
-    return Coerced(mock_potential, target_vocab, f=f)
-
-
-def test_token_type(coerced):
-    assert coerced.token_type == Atomic(bytes)
+        return self.bytes_to_int(context) / 2
 
 
 @pytest.mark.asyncio
-async def test_coerced_initialization(coerced, mock_potential):
-    assert coerced.potential == mock_potential
-    assert set(coerced.decode) == {b"aa", b"bb", b"aab"}
+async def test_simple():
+    p = MockPotential([b"a"[0], b"b"[0], b"c"[0]])
+    c = Coerced(p, [b"aa", b"bb", b"aab", b"aad"], f=b"".join)
+
+    assert c.token_type == Atomic(bytes)
+    assert set(c.decode) == {b"aa", b"bb", b"aab"}
+
+    have = await c.complete([b"aa", b"bb"])
+    want = await p.complete(b"aabb")
+    assert have == want
+
+    have = await c.prefix([b"aa", b"bb"])
+    want = await p.prefix(b"aabb")
+    assert have == want
+
+    have = await c.score([b"aa", b"bb", EOS])
+    want = await p.score(b"aabb" + EOS)
+    assert have == want
+
+    have = await c.logw_next([b"aa", b"bb"])
+    for x in c.decode_eos:
+        want = await p.score(b"aabb" + x) - await p.prefix(b"aabb")
+        assert have[x] == want, [have[x], want, x]
 
 
 @pytest.mark.asyncio
-async def test_coerced_prefix(coerced):
-    result = await coerced.prefix([b"aa", b"bb"])
-    assert result == 2
-
-
-@pytest.mark.asyncio
-async def test_coerced_complete(coerced):
-    result = await coerced.complete([b"aa", b"bb"])
-    assert result == 4
-
-
-@pytest.mark.asyncio
-async def test_coerced_score(coerced):
-    result = await coerced.score([b"aa", b"bb", EOS])
-    assert result == 4
-
-
-@pytest.mark.asyncio
-async def test_coerced_logw_next(mock_potential, coerced):
-    have = await coerced.logw_next([b"aa", b"bb"])
-    want = await mock_potential.batch_logw_next_seq(b"aabb", coerced.decode_eos)
-    for i, x in enumerate(coerced.decode_eos):
-        assert have[x] == want[i], [have[x], want[i], x]
-
-
-@pytest.mark.asyncio
-async def test_coerced_batch_operations(coerced):
-    sequences = [[b"aa"], [b"bb"]]
+async def test_coerced_batch_operations():
+    p = MockPotential([b"a"[0], b"b"[0], b"c"[0]])
+    coerced = Coerced(p, [b"aa", b"bb", b"aab", b"aad"], f=b"".join)
+    sequences = [[b"aa", b"aab"], [b"bb"]]
 
     have = await coerced.batch_complete(sequences)
     want = np.array([await coerced.complete(sequence) for sequence in sequences])
@@ -93,24 +68,16 @@ async def test_coerced_batch_operations(coerced):
     for have, want in zip(haves, wants):
         have.assert_equal(want)
 
-    have = await coerced.batch_logw_next_seq([b"aa"], sequences)
-    want = np.array(
-        [await coerced.logw_next_seq([b"aa"], sequences) for sequence in sequences]
-    )
-    np.testing.assert_array_equal(have, want)
-
 
 @pytest.mark.asyncio
 async def test_coerced_invalid_vocab():
-    def f(seq):
-        return [b for bs in seq for b in bs]  # list of bytes -> list of ints
-
     with pytest.raises(ValueError):
-        Coerced(MockPotential(), [b"xx", b"yy"], f=f)
+        Coerced(MockPotential([b"a"[0], b"b"[0], b"c"[0]]), [b"xx", b"yy"], f=b"".join)
 
 
 @pytest.mark.asyncio
-async def test_coerced_custom(mock_potential):
+async def test_coerced_custom():
+    mock_potential = MockPotential([b"a"[0], b"b"[0], b"c"[0]])
     coerced = Coerced(
         mock_potential,
         target_vocab=[b"aa", b"bb"],

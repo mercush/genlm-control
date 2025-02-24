@@ -253,9 +253,16 @@ class TopKSetSampler(TrieSetSampler):
                 P_wc = W_wc.normalize()
                 wc_id = draw(P_wc)
                 logp_wc = np.log(P_wc[wc_id])
-                w_guide_wc = await self.item_potential.logw_next_seq(
-                    self.f(context), self.target.decode_eos[wc_id]
-                )
+                wc = self.target.decode_eos[wc_id]
+                item_ctx = self.f(context)
+                prefix_w = await self.item_potential.prefix(item_ctx)
+                if wc is EOS:
+                    w_guide_wc = await self.item_potential.complete(item_ctx) - prefix_w
+                else:
+                    w_guide_wc = (
+                        await self.item_potential.prefix(self.f(context + [wc]))
+                        - prefix_w
+                    )
                 logws[wc_id] = np.log(W_wc[wc_id]) + w_guide_wc - logp_wc
 
         return self.target.make_lazy_weights(logws), logp_wc

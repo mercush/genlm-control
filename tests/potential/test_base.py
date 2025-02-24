@@ -43,17 +43,6 @@ async def test_score(potential):
 
 
 @pytest.mark.asyncio
-async def test_logw_next_seq(potential):
-    context = [b"b", b"c"]
-    extension = b"a"
-    have = await potential.logw_next_seq(context, extension)
-    want = await potential.score(context + [extension]) - await potential.prefix(
-        context
-    )
-    assert have == want
-
-
-@pytest.mark.asyncio
 async def test_logw_next(potential):
     context = [b"b", b"c"]
     have = (await potential.logw_next(context)).materialize()
@@ -92,20 +81,7 @@ async def test_batch_logw_next(potential):
 
 
 @pytest.mark.asyncio
-async def test_batch_logw_next_seq(potential):
-    context = [b"b", b"c"]
-    extensions = [b"a", b"b"]
-    haves = await potential.batch_logw_next_seq(context, extensions)
-    for i, extension in enumerate(extensions):
-        want = await potential.logw_next_seq(context, extensions[i])
-        assert haves[i] == want
-
-
-@pytest.mark.asyncio
 async def test_empty(potential):
-    with pytest.raises(ValueError):
-        await potential.batch_logw_next_seq([b"b", b"c"], [])
-
     with pytest.raises(ValueError):
         await potential.batch_logw_next([])
 
@@ -123,6 +99,4 @@ async def test_empty(potential):
 async def test_properties(potential):
     await potential.assert_logw_next_consistency([b"b", b"c"], verbosity=1)
     await potential.assert_autoreg_fact([b"b", b"c"], verbosity=1)
-    await potential.assert_batch_consistency(
-        [[b"b", b"c"], [b"a"]], extensions=[b"a", b"b"], verbosity=1
-    )
+    await potential.assert_batch_consistency([[b"b", b"c"], [b"a"]], verbosity=1)

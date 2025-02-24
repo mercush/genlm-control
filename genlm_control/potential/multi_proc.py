@@ -67,12 +67,6 @@ class MultiProcPotential(Potential):
     def _worker_score(context):
         return MultiProcPotential._run_coroutine(_worker_potential.score(context))
 
-    @staticmethod
-    def _worker_logw_next_seq(context, extension):
-        return MultiProcPotential._run_coroutine(
-            _worker_potential.logw_next_seq(context, extension)
-        )
-
     async def _run_in_executor(self, func, *args):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self.executor, func, *args)
@@ -86,11 +80,6 @@ class MultiProcPotential(Potential):
 
     async def complete(self, context):
         return await self._run_in_executor(self._worker_complete, context)
-
-    async def logw_next_seq(self, context, extension):
-        return await self._run_in_executor(
-            self._worker_logw_next_seq, context, extension
-        )
 
     async def batch_logw_next(self, contexts):
         results = await asyncio.gather(
