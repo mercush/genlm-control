@@ -10,8 +10,8 @@ def llm():
 
 
 @pytest.fixture(scope="module")
-def sentence_wfsa():
-    return BoolFSA.from_regex(r".*\.$")
+def best_fsa():
+    return BoolFSA.from_regex(r"\sthe\s(best|greatest).+")
 
 
 async def assert_engine_run(engine, n_particles, max_tokens, ess_threshold):
@@ -77,15 +77,13 @@ async def test_with_llm_and_critic(llm):
 
 
 @pytest.mark.asyncio
-async def test_with_llm_and_fsa(llm):
+async def test_with_llm_and_fsa(llm, best_fsa):
     mtl_llm = llm.spawn_new_eos([b"."])
     mtl_llm.set_prompt_from_str("Montreal is")
 
     sampler = direct_token_sampler(mtl_llm)
 
-    best_fsa = BoolFSA.from_regex(r"\sthe\s(best|greatest).+").coerce(
-        mtl_llm, f=b"".join
-    )
+    best_fsa = best_fsa.coerce(mtl_llm, f=b"".join)
 
     engine = InferenceEngine(sampler, critic=best_fsa)
     await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
@@ -99,11 +97,9 @@ async def test_with_llm_and_fsa(llm):
 
 
 @pytest.mark.asyncio
-async def test_with_llm_and_fsa_eager_sampler(llm):
+async def test_with_llm_and_fsa_eager_sampler(llm, best_fsa):
     mtl_llm = llm.spawn_new_eos([b"."])
     mtl_llm.set_prompt_from_str("Montreal is")
-
-    best_fsa = BoolFSA.from_regex(r"\sthe\s(best|greatest).+")
 
     sampler = eager_token_sampler(mtl_llm, best_fsa)
     engine = InferenceEngine(sampler)
@@ -118,3 +114,18 @@ async def test_with_llm_and_fsa_eager_sampler(llm):
     await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
 
     await engine.cleanup()
+
+
+def test_invalids(llm, best_fsa):
+    with pytest.raises(ValueError):
+        InferenceEngine(llm)
+
+    sampler = direct_token_sampler(llm)
+
+    with pytest.raises(ValueError):
+        InferenceEngine(llm, critic=sampler)
+
+    sampler = direct_token_sampler(llm)
+    with pytest.raises(ValueError):
+        # Fail to coerce beforehand.
+        InferenceEngine(sampler, critic=best_fsa)
