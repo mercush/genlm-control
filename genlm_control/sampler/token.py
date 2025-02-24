@@ -1,8 +1,9 @@
 from arsenal.maths import logsumexp
 from genlm_control.util import fast_sample_lazyweights
+from hfppl import SubModel
 
 
-class TokenSampler:
+class TokenSampler(SubModel):
     """Base class for sampling a token from a potential's vocabulary.
 
     Args:
@@ -12,6 +13,16 @@ class TokenSampler:
     def __init__(self, target):
         super().__init__()
         self.target = target
+
+    async def start_weight(self):
+        return await self.target.prefix([])
+
+    async def forward(self):
+        parent = self.parent  # For some reason, need to hold onto this reference.
+        token, logw, logp = await self.sample(parent.token_ctx)
+        parent.score(logw)
+        parent.logp += logp
+        return token
 
     async def sample(self, context, draw):
         raise NotImplementedError("Subclasses must implement sample method")

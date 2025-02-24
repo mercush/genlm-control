@@ -58,10 +58,10 @@ class TrieSetSampler(SetSampler):
     The target with respect to which the set's weights are computed is:
 
     ```
-        iter_potential * item_potential.coerce(iter_potential, f=lambda context: [item for items in context for item in items])
+        iter_potential * item_potential.coerce(iter_potential, f)
     ```
 
-    where `f` is a function that flattens the context into a list of items.
+    where `f` is a function that flattens the context into a list of items (e.g., `b''.join(context)`).
     """
 
     def __init__(self, iter_potential, item_potential):

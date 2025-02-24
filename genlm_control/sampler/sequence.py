@@ -4,7 +4,6 @@ from genlm_grammar import Float
 from arsenal.maths import logsumexp, sample_dict
 from functools import cached_property
 from genlm_control import EOS
-from contextlib import contextmanager
 from dataclasses import dataclass
 
 from hfppl import Model
@@ -73,52 +72,35 @@ class Sequences:
 
 class SequenceModel(Model):
     def __init__(self, unit_sampler, critic=None, max_tokens=float("inf")):
-        if max_tokens < 0:
-            raise ValueError("max_tokens must be greater than 0")
+        assert max_tokens > 0
 
         super().__init__()
-        self.context = []
+        self.token_ctx = []
         self.unit_sampler = unit_sampler
         self.max_tokens = max_tokens
         self.critic = critic
         self.logp = 0
-        self.target = (
-            unit_sampler.target * critic if critic is not None else unit_sampler.target
-        )
 
     async def start(self):
-        # Correct for discrepancy between autoregressive factorization of logw_next
-        # and complete.
-        self.score(await self.unit_sampler.target.prefix([]))
+        self.score(await self.unit_sampler.start_weight())
 
     async def step(self):
-        unit, logw, logp = await self.unit_sampler.sample(self.context)
-        self.score(logw)
-        self.context.append(unit)
-        self.logp += logp
+        unit = await self.call(self.unit_sampler)
+        self.token_ctx.append(unit)
 
         if self.critic:
-            twist_amt = await self.critic.score(self.context)
+            twist_amt = await self.critic.score(self.token_ctx)
             self.twist(twist_amt)
 
         self.max_tokens -= 1
-        if self.max_tokens == 0 or self.context[-1] is EOS:
+        if self.max_tokens == 0 or self.token_ctx[-1] is EOS:
             self.finish()
             if self.critic:
                 self.score(twist_amt)
             return
 
     def immutable_properties(self):
-        return set(["unit_sampler", "critic", "target"])
-
-    @contextmanager
-    def contextualize(self, context):
-        previous_context = self.context
-        self.context = context
-        try:
-            yield self
-        finally:
-            self.context = previous_context
+        return set(["unit_sampler", "critic"])
 
 
 def _unpack_particles(particles):
@@ -127,7 +109,7 @@ def _unpack_particles(particles):
         zip(
             *[
                 (
-                    p.context,
+                    p.token_ctx,
                     float("-inf") if np.isnan(p.weight) else p.weight,
                     p.logp,
                 )
