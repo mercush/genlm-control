@@ -28,8 +28,7 @@ class Coerced(Potential):
             potential (Potential): The original potential instance that is being coerced.
             target_vocab (list): The target vocabulary that the potential will operate on.
             f (callable): A function that maps iterables of tokens from the target vocabulary
-                to the original potential's vocabulary. Must be able to handle iterators
-                which are not materialized as lists.
+                to the original potential's vocabulary.
 
         Raises:
             ValueError: If no valid tokens are found in the target vocabulary that can be mapped to the original potential's vocabulary.
