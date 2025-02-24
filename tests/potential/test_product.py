@@ -117,6 +117,4 @@ async def test_properties(product):
     # Test the inherited property checks
     await product.assert_logw_next_consistency([b"b", b"c"], verbosity=1)
     await product.assert_autoreg_fact([b"b", b"c"], verbosity=1)
-    await product.assert_batch_consistency(
-        [[b"b", b"c"], [b"a"]], extensions=[b"a", b"b"], verbosity=1
-    )
+    await product.assert_batch_consistency([[b"b", b"c"], [b"a"]], verbosity=1)

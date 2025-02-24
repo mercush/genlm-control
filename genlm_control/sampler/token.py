@@ -40,6 +40,12 @@ class DirectTokenSampler(TokenSampler):
 
     Args:
         potential (Potential): The potential function to sample from
+
+    Warning:
+        Only use this sampler if the potential's `logw_next` method is efficient. This is the case
+        for potentials like `PromptedLLM`, but for custom potentials with a large vocabulary size,
+        the default implementation of `logw_next` generally will not be efficient, and thus this
+        sampler will be slow.
     """
 
     def __init__(self, potential):

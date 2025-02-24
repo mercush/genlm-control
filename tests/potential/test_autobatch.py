@@ -49,14 +49,6 @@ async def test_correctness():
     have = await asyncio.gather(*(autobatched.score(seq) for seq in sequences))
     assert want == have, [want, have]
 
-    want = await asyncio.gather(
-        *(potential.logw_next_seq([b"h"], seq) for seq in sequences)
-    )
-    have = await asyncio.gather(
-        *(autobatched.logw_next_seq([b"h"], seq) for seq in sequences)
-    )
-    assert want == have, [want, have]
-
     wants = await asyncio.gather(*(potential.logw_next(seq) for seq in sequences))
     haves = await asyncio.gather(*(autobatched.logw_next(seq) for seq in sequences))
     for have, want in zip(haves, wants):
@@ -89,10 +81,6 @@ async def test_batch_methods():
     have_logw_next = await autobatched.batch_logw_next(sequences)
     for have, want in zip(have_logw_next, want_logw_next):
         have.assert_equal(want)
-
-    want_logw_next_seq = await potential.batch_logw_next_seq([b"h"], sequences)
-    have_logw_next_seq = await autobatched.batch_logw_next_seq([b"h"], sequences)
-    np.testing.assert_array_equal(want_logw_next_seq, have_logw_next_seq)
 
     await autobatched.cleanup()
 

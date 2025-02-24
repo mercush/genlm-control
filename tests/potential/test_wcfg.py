@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 from genlm_grammar import CFG, Float
 from genlm_control.potential.built_in import WCFG, BoolCFG
-from genlm_control.constant import EOS
 
 
 @pytest.fixture
@@ -75,29 +74,23 @@ async def test_bcfg_prefix(byte_wcfg):
 async def test_properties(byte_wcfg):
     pot = WCFG(byte_wcfg)
 
-    extensions = [b"a", b"b", [*b"b", EOS]]
+    await pot.assert_logw_next_consistency(b"ab")
+    await pot.assert_autoreg_fact(b"ab")
+    await pot.assert_batch_consistency([b"a", b"ab"])
 
-    await pot.assert_logw_next_consistency(b"ab", verbosity=1)
-    await pot.assert_autoreg_fact(b"ab", verbosity=1)
-    await pot.assert_batch_consistency(
-        [b"a", b"ab"], extensions=extensions, verbosity=1
-    )
-
-    await pot.assert_logw_next_consistency(b"", verbosity=1)
-    await pot.assert_autoreg_fact(b"", verbosity=1)
-    await pot.assert_batch_consistency([b""], extensions=extensions, verbosity=1)
+    await pot.assert_logw_next_consistency(b"")
+    await pot.assert_autoreg_fact(b"")
+    await pot.assert_batch_consistency([b""])
 
     pot = BoolCFG(byte_wcfg)
 
-    await pot.assert_logw_next_consistency(b"ab", verbosity=1)
-    await pot.assert_autoreg_fact(b"ab", verbosity=1)
-    await pot.assert_batch_consistency(
-        [b"a", b"ab"], extensions=extensions, verbosity=1
-    )
+    await pot.assert_logw_next_consistency(b"ab")
+    await pot.assert_autoreg_fact(b"ab")
+    await pot.assert_batch_consistency([b"a", b"ab"])
 
-    await pot.assert_logw_next_consistency(b"", verbosity=1)
-    await pot.assert_autoreg_fact(b"", verbosity=1)
-    await pot.assert_batch_consistency([b""], extensions=extensions, verbosity=1)
+    await pot.assert_logw_next_consistency(b"")
+    await pot.assert_autoreg_fact(b"")
+    await pot.assert_batch_consistency([b""])
 
 
 @pytest.mark.asyncio

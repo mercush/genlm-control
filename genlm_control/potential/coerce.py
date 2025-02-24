@@ -3,10 +3,6 @@ from itertools import chain
 import asyncio
 
 
-def flatten(context):
-    return list(chain.from_iterable(context))
-
-
 class Coerced(Potential):
     """
     Coerce a potential to operate on another vocabulary.
@@ -31,7 +27,8 @@ class Coerced(Potential):
         Args:
             potential (Potential): The original potential instance that is being coerced.
             target_vocab (list): The target vocabulary that the potential will operate on.
-            f (callable): A function that maps sequences of tokens from the target vocabulary to the original potential's vocabulary.
+            f (callable): A function that maps iterables of tokens from the target vocabulary
+                to the original potential's vocabulary.
 
         Raises:
             ValueError: If no valid tokens are found in the target vocabulary that can be mapped to the original potential's vocabulary.
@@ -60,15 +57,13 @@ class Coerced(Potential):
         return await self.potential.prefix(context=self.f(context))
 
     async def logw_next(self, context):
-        Ws = await self.potential.batch_logw_next_seq(
-            context=self.f(context), extensions=self.decode_eos
-        )
+        Ws = self.alloc_logws()
+        ctx = self.f(context)
+        ctx_w = await self.potential.prefix(ctx)
+        Ws[-1] = await self.potential.complete(ctx) - ctx_w
+        exts = [self.f(chain(context, [x])) for x in self.decode]  # slow!!
+        Ws[:-1] = await self.potential.batch_prefix(exts) - ctx_w
         return self.make_lazy_weights(Ws)
-
-    async def logw_next_seq(self, context, extension):
-        return await self.potential.logw_next_seq(
-            context=self.f(context), extension=self.f(extension)
-        )
 
     async def batch_complete(self, contexts):
         return await self.potential.batch_complete(contexts=self._batch_f(contexts))
@@ -78,11 +73,6 @@ class Coerced(Potential):
 
     async def batch_logw_next(self, contexts):
         return await asyncio.gather(*[self.logw_next(context) for context in contexts])
-
-    async def batch_logw_next_seq(self, context, extensions):
-        return await self.potential.batch_logw_next_seq(
-            context=self.f(context), extensions=self._batch_f(extensions)
-        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.potential!r})"

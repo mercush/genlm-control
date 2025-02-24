@@ -8,14 +8,14 @@ class MockPotential(Potential):
         self.next_token_logws = np.array(next_token_logws)
         super().__init__(vocab)
 
-    def score(self, context):
+    def _logw(self, context):
         return sum([self.next_token_logws[self.encode[i]] for i in context])
 
     async def prefix(self, context):
-        return self.score(context)
+        return self._logw(context)
 
     async def complete(self, context):
-        return self.score(context) + self.next_token_logws[-1]
+        return self._logw(context) + self.next_token_logws[-1]
 
     async def logw_next(self, context):
         return self.make_lazy_weights(self.next_token_logws)

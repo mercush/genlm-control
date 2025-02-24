@@ -83,13 +83,6 @@ class Product(Potential):
         )
         return w1 + w2
 
-    async def logw_next_seq(self, context, extension):
-        W1, W2 = await asyncio.gather(
-            self.p1.logw_next_seq(context, extension),
-            self.p2.logw_next_seq(context, extension),
-        )
-        return W1 + W2
-
     async def batch_complete(self, contexts):
         W1, W2 = await asyncio.gather(
             self.p1.batch_complete(contexts), self.p2.batch_complete(contexts)
@@ -99,13 +92,6 @@ class Product(Potential):
     async def batch_prefix(self, contexts):
         W1, W2 = await asyncio.gather(
             self.p1.batch_prefix(contexts), self.p2.batch_prefix(contexts)
-        )
-        return W1 + W2
-
-    async def batch_logw_next_seq(self, context, extensions):
-        W1, W2 = await asyncio.gather(
-            self.p1.batch_logw_next_seq(context, extensions),
-            self.p2.batch_logw_next_seq(context, extensions),
         )
         return W1 + W2
 

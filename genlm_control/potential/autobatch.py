@@ -16,9 +16,9 @@ class AutoBatchedPotential(Potential):
     AutoBatchedPotential is a wrapper around a Potential that enables automatic batching of concurrent requests.
 
     This class manages a background loop that collects concurrent requests to instance methods
-    (`complete`, `prefix`, `score`, `logw_next`, `logw_next_seq`) and batches them together before
+    (`complete`, `prefix`, `score`, `logw_next`) and batches them together before
     delegating to the corresponding batch methods of the underlying potential
-    (`batch_complete`, `batch_prefix`, `batch_score`, `batch_logw_next`, `batch_logw_next_seq`).
+    (`batch_complete`, `batch_prefix`, `batch_score`, `batch_logw_next`).
 
     This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
 
@@ -53,21 +53,6 @@ class AutoBatchedPotential(Potential):
             "batch_logw_next", lambda args: ([*args[0], context],)
         )
 
-    async def logw_next_seq(self, context, extension):
-        def arg_accumulator(batch_args):
-            other_context, extensions = batch_args
-            if not other_context:
-                assert context
-                return context, [extension]
-            elif other_context == context:
-                return other_context, [*extensions, extension]
-            else:
-                raise ValueError("context mismatch")
-
-        return await self.background_loop.queue_request(
-            "batch_logw_next_seq", arg_accumulator
-        )
-
     async def batch_complete(self, contexts):
         return await self.potential.batch_complete(contexts)
 
@@ -79,9 +64,6 @@ class AutoBatchedPotential(Potential):
 
     async def batch_logw_next(self, contexts):
         return await self.potential.batch_logw_next(contexts)
-
-    async def batch_logw_next_seq(self, context, extensions):
-        return await self.potential.batch_logw_next_seq(context, extensions)
 
     def spawn(self, *args, **kwargs):
         # creates a new background loop.
@@ -138,11 +120,7 @@ class AsyncBatchLoop:
 
                 for method_name, requests in method_groups.items():
                     try:
-                        batch_args = (
-                            (None, [])
-                            if method_name == "batch_logw_next_seq"
-                            else ([],)
-                        )
+                        batch_args = ([],)
                         for req in requests:
                             batch_args = req.args_accumulator(batch_args)
 

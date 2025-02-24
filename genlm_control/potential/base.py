@@ -110,20 +110,6 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
         return self.make_lazy_weights(logws)
 
-    async def logw_next_seq(self, context, extension):
-        """Assess the weight of `extension` given `context`.
-
-        Corresponds to `score([*context, *extension]) - prefix(context)`.
-
-        Args:
-            context (list): Sequence of tokens to condition on.
-            extension (list): Sequence of tokens to score.
-
-        Returns:
-            (LazyWeights): Log weight of `extension` given `context`.
-        """
-        return (await self.batch_logw_next_seq(context, [extension]))[0]
-
     ###################
     # Batched methods #
     ###################
@@ -252,31 +238,6 @@ class Potential(ABC, PotentialOps, PotentialTests):
             batch_logws.append(self.make_lazy_weights(logws))
 
         return batch_logws
-
-    async def batch_logw_next_seq(self, context, extensions):
-        """Batched equivalent to `logw_next_seq`.
-
-        Args:
-            context (list): Sequence of tokens to condition on.
-            extensions (list): List of sequences of tokens to score.
-
-        Returns:
-            (np.array): Array of log weights for each extension.
-
-        Raises:
-            ValueError: If context has zero weight (log weight of -inf) under `prefix`.
-        """
-        if not extensions:
-            raise ValueError("Extensions must be non-empty.")
-
-        prefix = await self.prefix(context)
-        if prefix == float("-inf"):
-            raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
-
-        scores = await self.batch_score(
-            [[*context, *extension] for extension in extensions]
-        )
-        return scores - prefix
 
     #############
     # Utilities #
