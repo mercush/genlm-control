@@ -19,10 +19,7 @@ class Sequences:
     log_probs: list
 
     def __post_init__(self):
-        if not (len(self.contexts) == len(self.log_weights) == len(self.log_probs)):
-            raise ValueError(
-                "Contexts, weights, and probabilities must have the same length"
-            )
+        assert len(self.contexts) == len(self.log_weights) == len(self.log_probs)
 
         self.size = len(self.contexts)
         self.logp = sum(self.log_probs)

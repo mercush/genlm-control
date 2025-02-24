@@ -2,7 +2,7 @@ import asyncio
 import numpy as np
 from abc import ABC, abstractmethod
 
-from genlm_control.constant import EOS
+from genlm_control.constant import EOS, EndOfSequence
 from genlm_control.util import LazyWeights
 from genlm_control.typing import infer_vocabulary_type
 from genlm_control.potential.operators import PotentialOps
@@ -18,7 +18,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     Other methods come with default implementations, but may be overridden by subclasses.
     """
 
-    def __init__(self, vocabulary, token_type=None):
+    def __init__(self, vocabulary, token_type=None, eos=None):
         """
         Initialize the potential.
 
@@ -26,6 +26,8 @@ class Potential(ABC, PotentialOps, PotentialTests):
             vocabulary (list): List of tokens that make up the vocabulary.
             token_type (TokenType, optional): Optional TokenType of all elements of the vocabulary.
                 If None, will be inferred from vocabulary.
+            eos (EndOfSequence, optional): Special token to use as end-of-sequence. Defaults to `EOS`.
+                In general, this should not be set by users.
 
         Raises:
             ValueError: If vocabulary is empty.
@@ -40,6 +42,11 @@ class Potential(ABC, PotentialOps, PotentialTests):
         if not all(token_type.check(x) for x in vocabulary):
             raise TypeError(f"Tokens in vocabulary must be of type {token_type}.")
 
+        if eos is None:
+            eos = EOS
+        else:
+            assert isinstance(eos, EndOfSequence)
+
         self.token_type = token_type
         self.decode = vocabulary
         self.encode = {}
@@ -47,8 +54,8 @@ class Potential(ABC, PotentialOps, PotentialTests):
             if x in self.encode:
                 raise ValueError(f"Duplicate token {x!r} found in vocabulary")
             self.encode[x] = i
-        self.decode_eos = self.decode + [EOS]
-        self.encode_eos = {**self.encode, **{EOS: len(self.decode)}}
+        self.decode_eos = self.decode + [eos]
+        self.encode_eos = {**self.encode, **{eos: len(self.decode)}}
 
     ####################
     # Instance methods #

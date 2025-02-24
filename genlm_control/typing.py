@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from collections.abc import Sequence as SequenceABC
 
+from genlm_control.constant import EndOfSequence
+
 
 @dataclass
 class TokenType:
@@ -50,7 +52,7 @@ class Atomic(TokenType):
     type: type  # The Python type (int, str, etc.)
 
     def check(self, value):
-        return isinstance(value, self.type)
+        return isinstance(value, self.type) or isinstance(value, EndOfSequence)
 
     def convert(self, value):
         return self.type(value)
