@@ -7,7 +7,6 @@ __all__ = [
     "TopKSetSampler",
     "DirectTokenSampler",
     "SetTokenSampler",
-    "SequenceModelSMC",
     "Importance",
     "SMC",
     "SequenceModel",
