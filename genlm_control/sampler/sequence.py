@@ -87,8 +87,9 @@ class SequenceModel(Model):
         )
 
     async def start(self):
-        # Init weight with empty sequence weight under target.
-        self.score(await self.target.prefix([]))
+        # Correct for discrepancy between autoregressive factorization of logw_next
+        # and complete.
+        self.score(await self.unit_sampler.target.prefix([]))
 
     async def step(self):
         unit, logw, logp = await self.unit_sampler.sample(self.context)
@@ -120,13 +121,29 @@ class SequenceModel(Model):
             self.context = previous_context
 
 
+def _unpack_particles(particles):
+    contexts, logws, logps = map(
+        list,
+        zip(
+            *[
+                (
+                    p.context,
+                    float("-inf") if np.isnan(p.weight) else p.weight,
+                    p.logp,
+                )
+                for p in particles
+            ]
+        ),
+    )
+    return contexts, logws, logps
+
+
 class SequenceSampler(ABC):
     """Abstract base class for sequence samplers."""
 
     def __init__(self, unit_sampler, critic=None, max_tokens=float("inf")):
         self.unit_sampler = unit_sampler
         self.critic = critic
-        self.max_tokens = max_tokens
         self.model = SequenceModel(unit_sampler, critic, max_tokens)
         self.model_no_critic = (
             SequenceModel(unit_sampler, None, max_tokens)
@@ -134,25 +151,18 @@ class SequenceSampler(ABC):
             else self.model
         )
 
+    @property
+    def max_tokens(self):
+        return self.model.max_tokens
+
+    @max_tokens.setter
+    def max_tokens(self, value):
+        self.model.max_tokens = value
+        self.model_no_critic.max_tokens = value
+
     @abstractmethod
     async def sample(self, context=None, draw=sample_dict):
         pass
-
-    def _unpack_particles(self, particles):
-        contexts, logws, logps = map(
-            list,
-            zip(
-                *[
-                    (
-                        p.context,
-                        float("-inf") if np.isnan(p.weight) else p.weight,
-                        p.logp,
-                    )
-                    for p in particles
-                ]
-            ),
-        )
-        return contexts, logws, logps
 
     @abstractmethod
     async def infer(self):
@@ -177,16 +187,15 @@ class Importance(SequenceSampler):
             **kwargs,
         )
 
-        contexts, logws, logps = self._unpack_particles(particles)
+        contexts, logws, logps = _unpack_particles(particles)
         assert len(contexts) == len(logws) == len(logps)
 
         if self.critic is not None:
             # Since we didn't run inference with the critic,
-            # we need to add these weights here.
-            eps_prefix_w = await self.critic.prefix([])
+            # we need to add in the critic weight here.
             twist_amts = await self.critic.batch_score(contexts)
             for i in range(len(contexts)):
-                logws[i] = logws[i] + twist_amts[i] + eps_prefix_w
+                logws[i] += twist_amts[i]
 
         return Sequences(contexts, logws, logps)
 
@@ -210,6 +219,7 @@ class SMC(SequenceSampler):
         self.ess_threshold = ess_threshold
 
     def sample(self, context=None, draw=sample_dict):
+        # Eventually implement to support nested SMC.
         raise NotImplementedError("SMC does not support sampling")
 
     async def infer(self, **kwargs):
@@ -220,4 +230,5 @@ class SMC(SequenceSampler):
             **kwargs,
         )
 
-        return Sequences(*self._unpack_particles(particles))
+        contexts, logws, logps = _unpack_particles(particles)
+        return Sequences(contexts, logws, logps)
