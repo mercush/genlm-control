@@ -1,21 +1,41 @@
 import pytest
+import torch
 import numpy as np
 from arsenal.maths import logsumexp
 from hypothesis import given, strategies as st, settings
 
 from genlm_control.potential.built_in import PromptedLLM
 
+# pytest.mark.asyncio seems to cause issues with hypothesis
+# and the vllm backend, so we use asyncio.run here.
+
+
+async def reference_scorer(llm, context, eos=False):
+    """Compute the log probability of the context given the prompt."""
+    context_ids = llm.encode_tokens(context)
+
+    logps = await llm.model.next_token_logprobs(llm.prompt_ids)
+    total_logp = logps[context_ids[0]].item()
+
+    for i in range(1, len(context_ids)):
+        logps = await llm.model.next_token_logprobs(llm.prompt_ids + context_ids[:i])
+        total_logp += logps[context_ids[i]].item()
+
+    if eos:
+        logps = await llm.model.next_token_logprobs(llm.prompt_ids + context_ids)
+        eos_logp = float("-inf")
+        for i in llm.token_maps.eos_idxs:
+            eos_logp = logsumexp([eos_logp, logps[i].item()])
+        total_logp += eos_logp
+
+    return total_logp
+
 
 @pytest.fixture(
     scope="module",
     params=[
-        # pytest.param(
-        #    ("vllm", {"engine_opts": {"dtype": "float"}}),
-        #    marks=pytest.mark.skipif(
-        #        not torch.cuda.is_available(), reason="vllm requires CUDA"
-        #    ),
-        # ),
         ("hf", {"hf_opts": {"torch_dtype": "float"}}),
+        ("mock", {}),
     ],
 )
 def llm_config(request):
@@ -64,18 +84,20 @@ async def test_scoring(llm, pre_prompt, context_str):
 
 @pytest.mark.asyncio
 @settings(deadline=None)
-@given(
-    st.text(min_size=1), st.text(min_size=1), st.lists(st.text(min_size=1), min_size=1)
-)
-async def test_properties(llm, pre_prompt, context, contexts):
+@given(st.text(min_size=1), st.text(min_size=1))
+async def test_properties(llm, pre_prompt, context):
     pre_prompt_ids = llm.model.tokenizer.encode(pre_prompt)
-    context = llm.tokenize(context)
-
     llm.prompt_ids = pre_prompt_ids
+    context = llm.tokenize(context)
 
     await llm.assert_logw_next_consistency(context, top=10, rtol=1e-3, atol=1e-3)
     await llm.assert_autoreg_fact(context, rtol=1e-3, atol=1e-3)
 
+
+@pytest.mark.asyncio
+@settings(deadline=None)
+@given(st.lists(st.text(min_size=1), min_size=1, max_size=4))
+async def test_batch_consistency(llm, contexts):
     contexts = [llm.tokenize(context) for context in contexts]
     await llm.assert_batch_consistency(contexts, rtol=1e-3, atol=1e-3)
 
@@ -104,7 +126,7 @@ def eos_test_params(draw):
 @pytest.mark.asyncio
 @settings(deadline=None)
 @given(eos_test_params())
-async def test_eos_tokens(llm, params):
+async def test_new_eos_tokens(llm, params):
     eos_token_ids, context_ids, prompt_ids = params
     llm.prompt_ids = prompt_ids
     eos_tokens = [llm.token_maps.decode[x] for x in eos_token_ids]
@@ -120,22 +142,55 @@ async def test_eos_tokens(llm, params):
     assert np.isclose(have, want), [have, want]
 
 
-async def reference_scorer(llm, context, eos=False):
-    """Compute the log probability of the context given the prompt."""
-    context_ids = llm.encode_tokens(context)
+def test_invalid_eos_tokens(llm):
+    # Test EOS token not in vocabulary
+    invalid_eos = [b"THIS_TOKEN_DOES_NOT_EXIST"]
+    with pytest.raises(ValueError, match="EOS token not in language model vocabulary"):
+        llm.spawn_new_eos(eos_tokens=invalid_eos)
 
-    logps = await llm.model.next_token_logprobs(llm.prompt_ids)
-    total_logp = logps[context_ids[0]].item()
+    # Test duplicate EOS tokens
+    duplicate_eos = [llm.token_maps.decode[0], llm.token_maps.decode[0]]
+    with pytest.raises(AssertionError, match="duplicate eos tokens"):
+        llm.spawn_new_eos(eos_tokens=duplicate_eos)
 
-    for i in range(1, len(context_ids)):
-        logps = await llm.model.next_token_logprobs(llm.prompt_ids + context_ids[:i])
-        total_logp += logps[context_ids[i]].item()
+    # Test attempting to modify eos_tokens directly
+    with pytest.raises(
+        ValueError, match="Cannot reset eos_tokens after initialization"
+    ):
+        llm.eos_tokens = [llm.token_maps.decode[0]]
 
-    if eos:
-        logps = await llm.model.next_token_logprobs(llm.prompt_ids + context_ids)
-        eos_logp = float("-inf")
-        for i in llm.token_maps.eos_idxs:
-            eos_logp = logsumexp([eos_logp, logps[i].item()])
-        total_logp += eos_logp
 
-    return total_logp
+def test_invalid_token_encoding(llm):
+    # Test encoding invalid tokens
+    invalid_tokens = [b"INVALID_TOKEN"]
+    with pytest.raises(ValueError, match="Token .* not in vocabulary"):
+        llm.encode_tokens(invalid_tokens)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="vllm requires CUDA")
+async def test_vllm_backend():
+    # VLLM backend isn't playing well with hypothesis so we test it here.
+    # Note though that any differences between backends are encapsulated in the AsyncLM class, which
+    # is tested in genlm_backend, so we shouldn't expect any significant differences in testing outcomes.
+    llm = PromptedLLM.from_name("gpt2", backend="vllm", engine_opts={"dtype": "float"})
+
+    llm.set_prompt_from_str("hello")
+    context = llm.tokenize(" world!")
+
+    await llm.assert_logw_next_consistency(context, top=10, rtol=1e-3, atol=1e-3)
+    await llm.assert_autoreg_fact(context, rtol=1e-3, atol=1e-3)
+    await llm.assert_batch_consistency(
+        [context, llm.tokenize(" world")], rtol=1e-3, atol=1e-3
+    )
+
+    new_llm = llm.spawn_new_eos(eos_tokens=[b"!"])
+    assert new_llm.token_maps.eos_idxs == [0]
+    assert new_llm.token_maps.decode[0] == b"!"
+
+    context = llm.tokenize(" world")
+    await new_llm.assert_logw_next_consistency(context, top=10, rtol=1e-3, atol=1e-3)
+    await new_llm.assert_autoreg_fact(context, rtol=1e-3, atol=1e-3)
+    await new_llm.assert_batch_consistency(
+        [context, llm.tokenize(" worlds")], rtol=1e-3, atol=1e-3
+    )

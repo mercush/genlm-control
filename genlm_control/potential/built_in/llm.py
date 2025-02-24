@@ -91,12 +91,14 @@ class PromptedLLM(Potential):
                 * 'hf' for an `AsyncTransformer`; ideal for CPU usage
                 * 'mock' for a `MockAsyncLM`; ideal for testing.
                 Defaults to 'vllm' if CUDA is available, otherwise 'hf'.
+            eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
+                Defaults to the EOS token of the language model's tokenizer.
             prompt_ids (list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
                 Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `prompt` or `prompt_ids`.
             **kwargs: Additional arguments passed to AsyncLM constructor
 
         Returns:
-            (AsyncLM): The loaded language model
+            (PromptedLLM): An instance of PromptedLLM
         """
         backend = backend or ("vllm" if torch.cuda.is_available() else "hf")
         model = load_model_by_name(name, backend=backend, **kwargs)
@@ -115,7 +117,12 @@ class PromptedLLM(Potential):
 
     @property
     def prompt(self):
-        """Get the current prompt as a list of bytes sequences corresponding to the prompt token IDs."""
+        """
+        Get the current prompt as a list of bytes sequences corresponding to the prompt token IDs.
+
+        Returns:
+            (list[bytes]|None): The current prompt as a list of bytes sequences or None if no prompt_ids are set.
+        """
         if not self.prompt_ids:
             return
         return [self.token_maps.decode[x] for x in self.prompt_ids]
@@ -128,6 +135,7 @@ class PromptedLLM(Potential):
         Args:
             prompt_str (str): The prompt to set.
         """
+        # TODO: Handle race condition where prompt_ids reset concurrently.
         if not isinstance(prompt_str, str):
             raise ValueError(
                 f"Prompt must a string got {type(prompt_str)}. "
@@ -144,7 +152,8 @@ class PromptedLLM(Potential):
         self.prompt_ids = self.model.tokenizer.encode(prompt_str)
 
     def encode_tokens(self, tokens):
-        """Encode a list of byte tokens to a list of token IDs.
+        """Encode a list of byte tokens to a list of token IDs in
+        the underlying language model's vocabulary.
 
         Args:
             tokens (list[bytes]): List of byte tokens to encode
@@ -161,7 +170,15 @@ class PromptedLLM(Potential):
             raise ValueError(f"Token {e.args[0]} not in vocabulary") from e
 
     def decode_tokens(self, ids):
-        """Decode a list of token IDs to a list of byte tokens."""
+        """
+        Decode a list of token IDs to a list of byte tokens.
+
+        Args:
+            ids (list[int]): List of token IDs to decode
+
+        Returns:
+            (list[bytes]): The decoded tokens
+        """
         return [self.token_maps.decode[x] for x in ids]
 
     def tokenize(self, context_str):
@@ -209,7 +226,7 @@ class PromptedLLM(Potential):
         Compute the log probability of the context given the prompt.
 
         Args:
-            context (list): The context.
+            context (list[bytes]): The context, as a list of bytes sequences.
 
         Returns:
             (float): The log probability of the context.
@@ -220,10 +237,10 @@ class PromptedLLM(Potential):
         """
         Compute the log probability of the context and the eos tokens given the prompt.
 
-        If the model has multiple eos tokens, their log probabilities will be summed.
+        If the model has multiple eos tokens, their probabilities will be summed.
 
         Args:
-            context (list): The context.
+            context (list[bytes]): The context, as a list of bytes sequences.
 
         Returns:
             (float): The log probability of the context.
@@ -269,10 +286,10 @@ class PromptedLLM(Potential):
         return self._process_logw_next(logw_next.float().cpu().numpy())
 
     async def batch_logw_next(self, contexts):
-        """Get log probabilities for next tokens given `self.prompt` + `context`, for each context.
+        """Get log probabilities for next tokens given `self.prompt` + `context`, for a batch of contexts.
 
         Args:
-            contexts (list): List of token ID sequences representing contexts
+            contexts (list[list[bytes]]): List of token sequences, each representing a context.
 
         Returns:
             (List[LazyWeights]): Log probabilities for next tokens for each context
@@ -289,6 +306,15 @@ class PromptedLLM(Potential):
         return f"PromptedLLM(prompt={self.prompt!r})"
 
     def spawn(self):
+        """
+        Spawn a new PromptedLLM with the same prompt and eos tokens.
+
+        Returns:
+            (PromptedLLM): A new PromptedLLM with the same prompt and eos tokens.
+
+        Note:
+            This is a shallow copy. The new PromptedLLM will share the underlying AsyncLM instance.
+        """
         return PromptedLLM(
             self.model, prompt_ids=self.prompt_ids, eos_tokens=self._eos_tokens
         )
@@ -302,7 +328,7 @@ class PromptedLLM(Potential):
 
         Returns:
             (PromptedLLM): A new PromptedLLM with the specified end-of-sequence tokens.
-                The new model will have the same prompt_ids as the original model.
+                The new model will have the same prompt_ids as `self`.
         """
         return PromptedLLM(
             self.model, prompt_ids=self.prompt_ids, eos_tokens=eos_tokens
