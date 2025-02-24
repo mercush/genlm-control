@@ -72,14 +72,14 @@ async def test_smc(S, ess_threshold):
 @given(st.floats(min_value=0, max_value=1))
 async def test_smc_with_critic(ess_threshold):
     seqs = ["0", "00", "1"]
-    weights1 = [3.0, 1.0, 1.0]
+    weights1 = [3.0, 2.0, 1.0]
     weights2 = [1.0, 2.0, 3.0]
 
     p = WeightedSet(seqs, weights1)
     unit_sampler = DirectTokenSampler(p)
     critic = WeightedSet(seqs, weights2)
 
-    n_particles = 100
+    n_particles = 500
     sampler = SMC(unit_sampler, n_particles, ess_threshold=ess_threshold, critic=critic)
 
     sequences = await sampler.infer()
@@ -87,7 +87,7 @@ async def test_smc_with_critic(ess_threshold):
     intersection_ws = [w1 * w2 for w1, w2 in zip(weights1, weights2)]
     assert len(sequences) == n_particles
     assert np.isclose(
-        sequences.log_ml, np.log(sum(intersection_ws)), atol=float("inf"), rtol=0.1
+        np.exp(sequences.log_ml), sum(intersection_ws), atol=0.5, rtol=0.05
     )
 
 
