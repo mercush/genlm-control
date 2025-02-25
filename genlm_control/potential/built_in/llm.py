@@ -46,7 +46,7 @@ class PromptedLLM(Potential):
     conditioned on both a context and a fixed prompt prefix.
     """
 
-    def __init__(self, llm, prompt_ids=None, eos_tokens=None):
+    def __init__(self, llm, prompt_ids=None, eos_tokens=None, temperature=1):
         """`
         Initializes the PromptedLLM potential.
 
@@ -76,12 +76,22 @@ class PromptedLLM(Potential):
             decode=llm.byte_vocab, eos_tokens=self._eos_tokens
         )
 
+        self.temperature = temperature
+
         V = [x for x in self.token_maps.decode if x not in self._eos_tokens]
 
         super().__init__(vocabulary=V)
 
     @classmethod
-    def from_name(cls, name, backend=None, eos_tokens=None, prompt_ids=None, **kwargs):
+    def from_name(
+        cls,
+        name,
+        backend=None,
+        eos_tokens=None,
+        prompt_ids=None,
+        temperature=1.0,
+        **kwargs,
+    ):
         """Create a language model from a name.
 
         Args:
@@ -102,7 +112,9 @@ class PromptedLLM(Potential):
         """
         backend = backend or ("vllm" if torch.cuda.is_available() else "hf")
         model = load_model_by_name(name, backend=backend, **kwargs)
-        return cls(model, prompt_ids=prompt_ids, eos_tokens=eos_tokens)
+        return cls(
+            model, prompt_ids=prompt_ids, eos_tokens=eos_tokens, temperature=temperature
+        )
 
     @property
     def eos_tokens(self):
@@ -212,14 +224,20 @@ class PromptedLLM(Potential):
 
     async def _log_probability(self, context_ids):
         prefixes = [self.prompt_ids + context_ids[:i] for i in range(len(context_ids))]
-        log_ps = await self.model.batch_next_token_logprobs(prefixes)
-
+        log_ps = self._maybe_temper(
+            await self.model.batch_next_token_logprobs(prefixes)
+        )
         target_ids = torch.tensor(context_ids, device=log_ps.device)
         with torch.no_grad():
             token_logprobs = torch.gather(log_ps, 1, target_ids.unsqueeze(1))
             total_logprob = token_logprobs.sum().item()
 
         return total_logprob
+
+    def _maybe_temper(self, logps):
+        if self.temperature == 1:
+            return logps
+        return torch.log_softmax(logps / self.temperature, dim=-1)
 
     async def prefix(self, context):
         """
@@ -247,7 +265,9 @@ class PromptedLLM(Potential):
         """
         context_ids = self.encode_tokens(context)
         logp_context = await self._log_probability(context_ids)
-        logp_next = await self.model.next_token_logprobs(self.prompt_ids + context_ids)
+        logp_next = self._maybe_temper(
+            await self.model.next_token_logprobs(self.prompt_ids + context_ids)
+        )
         logp_eos = torch.logsumexp(logp_next[self.token_maps.eos_idxs], dim=0).item()
         return logp_context + logp_eos
 
@@ -280,8 +300,10 @@ class PromptedLLM(Potential):
         Returns:
             (LazyWeights): Log probabilities for next tokens
         """
-        logw_next = await self.model.next_token_logprobs(
-            self.prompt_ids + self.encode_tokens(context)
+        logw_next = self._maybe_temper(
+            await self.model.next_token_logprobs(
+                self.prompt_ids + self.encode_tokens(context)
+            )
         )
         return self._process_logw_next(logw_next.float().cpu().numpy())
 
@@ -294,8 +316,10 @@ class PromptedLLM(Potential):
         Returns:
             (List[LazyWeights]): Log probabilities for next tokens for each context
         """
-        logw_nexts = await self.model.batch_next_token_logprobs(
-            [self.prompt_ids + self.encode_tokens(context) for context in contexts]
+        logw_nexts = self._maybe_temper(
+            await self.model.batch_next_token_logprobs(
+                [self.prompt_ids + self.encode_tokens(context) for context in contexts]
+            )
         )
         return [
             self._process_logw_next(logw_next)

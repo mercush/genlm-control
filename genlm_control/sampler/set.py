@@ -61,7 +61,7 @@ class TrieSetSampler(SetSampler):
         iter_potential * item_potential.coerce(iter_potential, f)
     ```
 
-    where `f` is a function that flattens the context into a list of items (e.g., `b''.join(context)`).
+    where `f` is a function that flattens the context into a list of items (e.g., `b''.join`).
     """
 
     def __init__(self, iter_potential, item_potential):
