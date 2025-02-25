@@ -16,7 +16,7 @@ class TokenType:
         """Check if this type can be interpreted as an iterable of element_type.
 
         Args:
-            element_type: The type to check if this is an iterable of
+            element_type (TokenType): The type to check if this is an iterable of
 
         Examples:
             >>> Sequence(Atomic(int)).is_iterable_of(Atomic(int))
@@ -83,10 +83,10 @@ def infer_type(value):
     """Infer the TokenType from a value.
 
     Args:
-        value: A sample value to infer type from
+        value (Any): A sample value to infer type from
 
     Returns:
-        TokenType: The inferred type
+        (TokenType): The inferred type
 
     Examples:
         >>> infer_type(42)
@@ -111,10 +111,10 @@ def infer_vocabulary_type(vocabulary):
     """Infer the TokenType from a vocabulary.
 
     Args:
-        vocabulary: List of tokens to infer type from
+        vocabulary (List[Any]): A list of tokens to infer type from
 
     Returns:
-        TokenType: The inferred type
+        (TokenType): The inferred type
 
     Raises:
         ValueError: If vocabulary is empty or contains inconsistent types

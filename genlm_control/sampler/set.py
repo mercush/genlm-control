@@ -12,11 +12,16 @@ from genlm_control.constant import EOS
 class SetSampler(ABC):
     """Base class for set samplers.
 
-    A set sampler samples a weighted set of tokens. The weight associated with each token is given as:
+    A set sampler samples a weighted set of tokens from a the vocabulary of a `target` potential.
 
-        target.logw_next(token | context) - log_inclusion_probability
+    Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the target potential's vocabulary and a sampled set of tokens $S \\subseteq \\textsf{target.decode_eos}$,
+    the log-weight associated with each token $x_n$ must correspond to:
 
-    where log_inclusion_probability is the log of the probability the token was included in the sampled set.
+    $$
+        \\textsf{target.logw_next}(x_n | x_1, \\ldots, x_{n-1}) - \\log \\Pr(x_n \\in S)
+    $$
+
+    where $\\Pr(x_n \\in S)$ is the probability the token was included in the sampled set.
 
     Attributes:
         target (Potential): The target potential with respect to which the set's weights are computed.
@@ -27,6 +32,7 @@ class SetSampler(ABC):
 
     @abstractmethod
     async def sample_set(self, context):
+        """Sample a weighted set of tokens from the target potential's vocabulary."""
         pass
 
     async def trace_swor(self, context):
@@ -52,21 +58,19 @@ class TrieSetSampler(SetSampler):
     """
     TrieSetSampler is a specialized set sampler that utilizes a trie data structure to efficiently sample a weighted set of tokens.
 
-    This sampler is designed to work with two types of potentials: a potential over a vocabulary of iterables and
-    a potential over a vocabulary of items which are the elements of the iterables (e.g., byte sequences and ints, strings and chars, etc.).
+    This sampler is designed to work with two potentials:\n
+    - a potential over a vocabulary of iterables (`iter_potential`) and\n
+    - a potential over a vocabulary of items which are the elements of the iterables (`item_potential`).
 
-    The target with respect to which the set's weights are computed is:
+    For example, if `iter_potential` is a potential over byte sequences, then `item_potential` is a potential over bytes.
 
-    ```
-        iter_potential * item_potential.coerce(iter_potential, f)
-    ```
-
-    where `f` is a function that flattens the context into a list of items (e.g., `b''.join`).
+    The target potential is the product of `iter_potential` and the `item_potential` coerced to operate on the token type of `iter_potential`. Thus,
+    `TrieSetSampler`s sample tokens from the `iter_potential`'s vocabulary.
     """
 
     def __init__(self, iter_potential, item_potential):
         """
-        Initialize the TrieSetSampler.
+        Initialize the `TrieSetSampler`.
 
         Args:
             iter_potential (Potential): The potential defined over a vocabulary of iterables.
@@ -100,21 +104,13 @@ class TrieSetSampler(SetSampler):
 
     async def sample_set(self, context):
         """
-        Sample a set of tokens given a context.
-
-        Each token is associated with a log weight that corresponds to:
-
-        ```
-            target.logw_next(token | context) - log_inclusion_probability
-        ```
-
-        where log_inclusion_probability is the log of the probability the token was included in the sampled set.
+        Sample a weighted set of tokens given a context.
 
         Args:
             context (list): The sequence to condition on.
 
         Returns:
-            A weighted set of tokens.
+            (LazyWeights, float): A weighted set of tokens and the log-probability of the sampled set.
 
         Raises:
             NotImplementedError: If the method is not implemented in subclasses.
@@ -136,14 +132,23 @@ class TrieSetSampler(SetSampler):
 
 class EagerSetSampler(TrieSetSampler):
     """
-    EagerSetSampler is a subclass of TrieSetSampler that implements an eager sampling strategy
-    for generating a set of tokens. It incrementally samples items from the item-wise product
-    of the iter_potential and item_potential and accumulates any valid token along the way.
+    A trie-based set sampler that implements an eager sampling strategy
+    for generating a set of tokens.
 
-    See :class:`TrieSetSampler` for more details.
+    An `EagerSetSampler` samples tokens by incrementally sampling items from the item-wise product of the `iter_potential` and `item_potential`.
+    The sampled set is the set of sequences of items that correspond to valid tokens in `iter_potential`'s vocabulary.
     """
 
     async def sample_set(self, context, draw=None):
+        """
+        Sample a set of tokens given a context.
+
+        Args:
+            context (list): A sequence of tokens in the `iter_potential`'s vocabulary.
+
+        Returns:
+            (LazyWeights, float): A weighted set of tokens and the log-probability of the sampled set.
+        """
         if draw is None:
             draw = sample_dict
         iter_logws = await self.iter_potential.logw_next(context)
@@ -194,15 +199,13 @@ class EagerSetSampler(TrieSetSampler):
 
 class TopKSetSampler(TrieSetSampler):
     """
-    TopKSetSampler is a specialized sampler that lazily enumerates the top K tokens in the target distribution,
+    A trie-based set sampler that lazily enumerates the top K tokens by weight in the target,
     and samples an additional "wildcard" token to ensure absolute continuity.
 
-    See :class:`TrieSetSampler` for more details.
-
     Warning:
-        This sampler is not guaranteed to be correct if the item_potential's
+        This sampler is not guaranteed to be correct if the `item_potential`'s
         prefix weights do not monotonically decrease with the length of the context.
-        That is, prefix(x) <= prefix(xy) for all sequences of items x, y.
+        That is, $\\textsf{item_potential.prefix}(x) \\leq \\textsf{item_potential.prefix}(xy)$ for all sequences of items $x, y$.
     """
 
     def __init__(self, iter_potential, item_potential, K):
@@ -220,6 +223,15 @@ class TopKSetSampler(TrieSetSampler):
         self.K = K
 
     async def sample_set(self, context, draw=None):
+        """
+        Sample a set of tokens given a context.
+
+        Args:
+            context (list): A sequence of tokens in the `iter_potential`'s vocabulary.
+
+        Returns:
+            (LazyWeights, float): A weighted set of tokens and the log-probability of the sampled set.
+        """
         if draw is None:
             draw = sample_dict
         iter_logws = await self.iter_potential.logw_next(context)

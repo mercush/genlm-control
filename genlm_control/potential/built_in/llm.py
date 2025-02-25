@@ -24,7 +24,11 @@ def load_model_by_name(name, backend, **kwargs):
 
 
 class TokenMappings(NamedTuple):
-    """Container for token mappings between bytes and model IDs in a language model."""
+    """
+    Container for token mappings between bytes and tokens IDs in a language model.
+
+    This mapping is generally different from the `decode` and `encode` mappings in the `PromptedLLM` class (see notes on EOS token handling).
+    """
 
     decode: list[bytes]  # token_id -> bytes
     encode: dict[bytes, int]  # bytes -> token_id
@@ -40,10 +44,19 @@ class TokenMappings(NamedTuple):
 
 
 class PromptedLLM(Potential):
-    """A potential for a prompted language model.
+    """A potential representing a language model conditioned on a fixed prompt prefix.
 
-    This class wraps a language model and allows computing next token probabilities
-    conditioned on both a context and a fixed prompt prefix.
+    `PromptedLLM`s operate on byte sequences. The `decode` attribute corresponds to the byte representations of the tokens
+    in the vocabulary of the language model's tokenizer, excluding any tokens specified as end-of-sequence tokens
+    via the `eos_tokens` argument.
+
+    Notes on EOS Token Handling:\n
+    - Tokens to treat as end-of-sequence tokens are specified via the `eos_tokens` argument.\n
+    - These tokens are excluded from the potential's vocabulary and as such do not appear in the `decode` attribute.\n
+        This means they cannot appear in any input contexts to the potential nor in the output of `logw_next`. They can be used in the prompt however.\n
+    - The log probability assigned to the `genlm_control`'s reserved `EOS` token is the sum of the log probabilities of all the specified EOS tokens.\n
+
+    This class wraps an `AsyncLM` instance.
     """
 
     def __init__(self, llm, prompt_ids=None, eos_tokens=None, temperature=1):
@@ -56,6 +69,7 @@ class PromptedLLM(Potential):
                 Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `prompt` or `prompt_ids`.
             eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
                 Defaults to the EOS token of the language model's tokenizer.
+            temperature (float, optional): The temperature to apply to the language model's logits. Defaults to 1.
 
         Raises:
             ValueError: If any EOS token is not in the language model vocabulary.
@@ -92,20 +106,21 @@ class PromptedLLM(Potential):
         temperature=1.0,
         **kwargs,
     ):
-        """Create a language model from a name.
+        """Create a `PromptedLLM` from a HugginFace model name.
 
         Args:
-            name: Name of the model to load
-            backend (str, optional): `AsyncLM` backend to use:
-                * 'vllm' to instantiate an `AsyncVirtualLM`; ideal for GPU usage
-                * 'hf' for an `AsyncTransformer`; ideal for CPU usage
-                * 'mock' for a `MockAsyncLM`; ideal for testing.
+            name (str): Name of the model to load
+            backend (str, optional): `AsyncLM` backend to use:\n
+                * 'vllm' to instantiate an `AsyncVirtualLM`; ideal for GPU usage\n
+                * 'hf' for an `AsyncTransformer`; ideal for CPU usage\n
+                * 'mock' for a `MockAsyncLM`; ideal for testing.\n
                 Defaults to 'vllm' if CUDA is available, otherwise 'hf'.
             eos_tokens (list[bytes], optional): List of tokens to treat as end-of-sequence tokens.
                 Defaults to the EOS token of the language model's tokenizer.
             prompt_ids (list[int], optional): Optional prompt to use as a prompt prefix for all input contexts.
-                Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `prompt` or `prompt_ids`.
-            **kwargs: Additional arguments passed to AsyncLM constructor
+                Must be a list of token IDs. Defaults to None. The prompt ids can be set post-init via `set_prompt_from_str` or `prompt_ids`.
+            temperature (float, optional): The temperature to apply to the language model's logits. Defaults to 1.
+            **kwargs (dict): Additional arguments passed to AsyncLM constructor
 
         Returns:
             (PromptedLLM): An instance of PromptedLLM
@@ -130,7 +145,7 @@ class PromptedLLM(Potential):
     @property
     def prompt(self):
         """
-        Get the current prompt as a list of bytes sequences corresponding to the prompt token IDs.
+        Get the current prompt as a list of byte sequences corresponding to the prompt token IDs.
 
         Returns:
             (list[bytes]|None): The current prompt as a list of bytes sequences or None if no prompt_ids are set.
@@ -171,7 +186,7 @@ class PromptedLLM(Potential):
             tokens (list[bytes]): List of byte tokens to encode
 
         Returns:
-            List of token IDs
+            (list[int]): A list of token IDs corresponding to the input tokens.
 
         Raises:
             ValueError: If any token is not in the vocabulary
@@ -183,38 +198,38 @@ class PromptedLLM(Potential):
 
     def decode_tokens(self, ids):
         """
-        Decode a list of token IDs to a list of byte tokens.
+        Decode a list of token IDs in the language model's vocabulary to a list of byte tokens.
 
         Args:
-            ids (list[int]): List of token IDs to decode
+            ids (list[int]): A list of token IDs in the language model's vocabulary.
 
         Returns:
-            (list[bytes]): The decoded tokens
+            (list[bytes]): A list of byte tokens corresponding to the input token IDs.
         """
         return [self.token_maps.decode[x] for x in ids]
 
     def tokenize(self, context_str):
         """Tokenize a string to a list of `bytes` objects, each corresponding to a token in the vocabulary.
 
-        Uses the language model's tokenizer to map to token IDs, and then decodes the token IDs to bytes.
+        Uses the language model's tokenizer to map `context_str` to a list of token IDs, and then decodes the token IDs to bytes.
 
         Args:
-            context_str (str): The string to encode
+            context_str (str): A string to encode
 
         Returns:
-            (List[bytes]): The encoded string
+            (List[bytes]): A list of byte tokens corresponding to the input string.
         """
         return self.decode_tokens(self.model.tokenizer.encode(context_str))
 
     async def log_probability(self, context):
         """
-        Compute the log probability of the context given the prompt.
+        Compute the log probability of `context` given the prompt.
 
         Args:
-            context (list): The context.
+            context (list[bytes]): A sequence of bytes tokens.
 
         Returns:
-            (float): The log probability of the context.
+            (float): The log probability of `context`.
         """
         if not context:
             return 0
@@ -241,24 +256,24 @@ class PromptedLLM(Potential):
 
     async def prefix(self, context):
         """
-        Compute the log probability of the context given the prompt.
+        Compute the log probability of `context` given the prompt.
 
         Args:
-            context (list[bytes]): The context, as a list of bytes sequences.
+            context (list[bytes]): A sequence of bytes tokens.
 
         Returns:
-            (float): The log probability of the context.
+            (float): The log probability of `context`.
         """
         return await self.log_probability(context)
 
     async def complete(self, context):
         """
-        Compute the log probability of the context and the eos tokens given the prompt.
+        Compute the log probability of `context` and the eos tokens given the prompt.
 
         If the model has multiple eos tokens, their probabilities will be summed.
 
         Args:
-            context (list[bytes]): The context, as a list of bytes sequences.
+            context (list[bytes]): A sequence of bytes tokens.
 
         Returns:
             (float): The log probability of the context.
@@ -293,12 +308,13 @@ class PromptedLLM(Potential):
         return self.make_lazy_weights(_logw_next)
 
     async def logw_next(self, context):
-        """Get log probabilities for next tokens given `self.prompt` + `context`.
+        """Get log probabilities for next tokens given the prompt and `context`.
 
         Args:
-            context (List[bytes]): List of tokens representing the context
+            context (List[bytes]): A sequence of bytes tokens.
+
         Returns:
-            (LazyWeights): Log probabilities for next tokens
+            (LazyWeights): Log probabilities for next tokens and EOS.
         """
         logw_next = self._maybe_temper(
             await self.model.next_token_logprobs(
@@ -308,13 +324,13 @@ class PromptedLLM(Potential):
         return self._process_logw_next(logw_next.float().cpu().numpy())
 
     async def batch_logw_next(self, contexts):
-        """Get log probabilities for next tokens given `self.prompt` + `context`, for a batch of contexts.
+        """Get log probabilities for next tokens given the prompt and `context`, for a batch of contexts.
 
         Args:
-            contexts (list[list[bytes]]): List of token sequences, each representing a context.
+            contexts (list[list[bytes]]): A list of sequences of bytes tokens.
 
         Returns:
-            (List[LazyWeights]): Log probabilities for next tokens for each context
+            (List[LazyWeights]): Log probabilities for next tokens and EOS for each context.
         """
         logw_nexts = self._maybe_temper(
             await self.model.batch_next_token_logprobs(
@@ -348,7 +364,7 @@ class PromptedLLM(Potential):
         Create a new PromptedLLM with a different set of end-of-sequence tokens.
 
         Args:
-            eos_tokens (list[bytes]): List of tokens to treat as end-of-sequence tokens.
+            eos_tokens (list[bytes]): A list of tokens to treat as end-of-sequence tokens.
 
         Returns:
             (PromptedLLM): A new PromptedLLM with the specified end-of-sequence tokens.

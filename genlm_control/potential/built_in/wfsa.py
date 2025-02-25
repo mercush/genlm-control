@@ -9,7 +9,10 @@ from genlm_control.potential.base import Potential, EOS
 
 class WFSA(Potential):
     """
-    WFSA potential class that models Potentials based on WFSAs. Wraps a `genlm_grammar.WFSA`.
+    A weighted finite state automaton (WFSA) potential.
+
+    This class wraps a `genlm_grammar.WFSA` and provides methods for computing the log-weight of a context,
+    the prefix log-weight of a context, and the log-weights of the next token given a context.
 
     Attributes:
         wfsa (genlm_grammar.WFSA): The weighted finite state automaton used for potential calculations.
@@ -48,7 +51,10 @@ class WFSA(Potential):
             (WFSA): An instance of the WFSA class.
 
         Note:
-            The underlying instantiated WFSA will have probabilistic transitions.
+            The transition weights are automatically normalized to form a probability distribution.
+            For each state, the weights of all outgoing transitions (including final state transitions)
+            sum to 1.0. This means if a state has n possible transitions, each transition will have
+            weight 1/n. To create a WFSA from a regex with non-probabilistic transitions, use `BoolFSA`.
         """
         charset = charset or set(string.printable)
         wfsa = interegular_to_wfsa(pattern, charset=charset)
@@ -78,10 +84,15 @@ class WFSA(Potential):
 
     async def complete(self, context):
         """
-        Computes the log weight of the context under the WFSA.
+        Computes the log weight of the context under the weighted language represented by the WFSA.
+
+        For example, if the WFSA accepts "cat" and "car" with weights $w_{cat}$ and $w_{car}$:\n
+        - `complete("c")` returns $-\\infty$ since this sequence is not accepted by the WFSA\n
+        - `complete("cat")` returns $\\log(w_{cat})$\n
+        - `complete("d")` returns $-\\infty$ since this sequence is not accepted by the WFSA
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
             (float): Log weight of context under the WFSA.
@@ -91,13 +102,20 @@ class WFSA(Potential):
 
     async def prefix(self, context):
         """
-        Computes the prefix log weight of the context under the WFSA.
+        Computes the prefix log weight of `context` under the WFSA.
+
+        This corresponds to the log of the sum of the weights of all sequences with prefix `context`.
+
+        For example, if the WFSA accepts "cat" and "car" with weights $w_{cat}$ and $w_{car}$:\n
+        - `prefix("c")` returns $\\log(w_{cat} + w_{car})$\n
+        - `prefix("ca")` returns $\\log(w_{cat})$\n
+        - `prefix("d")` returns $-\\infty$ since the WFSA does not accept any sequences with prefix "d"
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
-            (float): Log weight of context as a prefix under the WFSA.
+            (float): Log weight of `context` as a prefix under the WFSA.
         """
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
@@ -105,13 +123,13 @@ class WFSA(Potential):
         return np.log(w) if w > 0 else float("-inf")
 
     async def logw_next(self, context):
-        """Returns next token log weights after consuming context.
+        """Returns next token log weights given `context`.
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
-            (LazyWeights): Log-weights for next token.
+            (LazyWeights): Log-weights for next token and EOS.
         """
         curr = self._consume(context)
         bkwd = self.wfsa.epsremove.backward
@@ -160,13 +178,13 @@ class BoolFSA(WFSA):
 
     async def prefix(self, context):
         """
-        Checks whether the context is accepted as a prefix by the FSA.
+        Computes whether the context is accepted as a prefix by the FSA.
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
-            (float): Log weight for whether the context is accepted as a prefix by the FSA.
+            (float): `0` if the context is accepted as a prefix, `-inf` otherwise.
         """
         prefix_w = await super().prefix(context)
         if prefix_w > float("-inf"):
@@ -175,13 +193,13 @@ class BoolFSA(WFSA):
 
     async def complete(self, context):
         """
-        Checks whether the context is accepted by the FSA.
+        Computes whether the context is accepted by the FSA.
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
-            (float): Log weight for whether the context is accepted by the FSA.
+            (float): `0` if the context is accepted, `-inf` otherwise.
         """
         complete_w = await super().complete(context)
         if complete_w > float("-inf"):
@@ -190,13 +208,13 @@ class BoolFSA(WFSA):
 
     async def logw_next(self, context):
         """
-        Returns next token log weights after consuming context.
+        Returns next token log weights given `context`.
 
         Args:
-            context (list): The context.
+            context (list): A sequence of tokens in the WFSA's alphabet.
 
         Returns:
-            (LazyWeights): Log-weights for next token.
+            (LazyWeights): Boolean log-weights for next token.
         """
         logw_next = await super().logw_next(context)
         return logw_next.spawn(

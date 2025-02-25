@@ -42,7 +42,7 @@ class LazyWeights:
         Retrieve the weight for a given token.
 
         Args:
-            token: The token for which to retrieve the weight.
+            token (Any): The token for which to retrieve the weight.
 
         Returns:
             (float): The weight of the token, or -inf/0 if the token is not found.
@@ -181,7 +181,7 @@ class LazyWeights:
 
         Args:
             other (LazyWeights): The other LazyWeights instance to compare.
-            **kwargs: Additional arguments for np.testing.assert_allclose (e.g., rtol, atol).
+            **kwargs (dict): Additional arguments for np.testing.assert_allclose (e.g., rtol, atol).
         """
         assert self.decode == other.decode
         np.testing.assert_allclose(self.weights, other.weights, **kwargs)
@@ -192,7 +192,7 @@ class LazyWeights:
 
         Args:
             other (LazyWeights): The other LazyWeights instance to compare.
-            **kwargs: Additional arguments for np.isclose (e.g., rtol, atol).
+            **kwargs (dict): Additional arguments for np.isclose (e.g., rtol, atol).
         """
         assert set(self.decode) == set(other.decode), "keys do not match"
 
@@ -208,7 +208,7 @@ def load_trie(V, backend=None, **kwargs):
     Args:
         V (list): The vocabulary.
         backend (str, optional): The backend to use for trie construction. Defaults to None.
-        **kwargs: Additional arguments for the trie construction.
+        **kwargs (dict): Additional arguments for the trie construction.
 
     Returns:
         (TokenCharacterTrie): A trie instance.
@@ -234,7 +234,7 @@ def load_async_trie(V, backend=None, **kwargs):
     Args:
         V (list): The vocabulary.
         backend (str, optional): The backend to use for trie construction. Defaults to None.
-        **kwargs: Additional arguments for the trie construction.
+        **kwargs (dict): Additional arguments for the trie construction.
 
     Returns:
         (AsyncTokenCharacterTrie): An async trie instance.
@@ -249,10 +249,10 @@ def fast_sample_logprobs(logprobs: np.ndarray, size: int = 1) -> np.ndarray:
 
     Args:
         logprobs: Array of log probabilities
-        size: Number of samples to draw
+        size (int): Number of samples to draw
 
     Returns:
-        Array of sampled indices
+        (np.ndarray): Array of sampled indices
 
     Note:
         This is much faster than np.random.choice for large arrays since it avoids
@@ -266,10 +266,10 @@ def fast_sample_lazyweights(lazyweights):
     """Sample a token from a LazyWeights instance using the Gumbel-max trick.
 
     Args:
-        lazyweights: LazyWeights instance
+        lazyweights (LazyWeights): A LazyWeights instance
 
     Returns:
-        Sampled token
+        (Any): Sampled token
     """
     assert lazyweights.is_log
     token_id = fast_sample_logprobs(lazyweights.weights, size=1)[0]

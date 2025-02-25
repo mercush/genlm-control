@@ -39,9 +39,9 @@ class PotentialTests:
         For a `context` of tokens $x_1, \\ldots, x_{n-1}$, this checks (in log space) whether:
 
         $$
-        \\textsf{logw\_next}(x_n | x_1, \\ldots, x_{n-1}) = \\textsf{score}(x_1, \\ldots, x_n) - \\textsf{prefix}(x_1, \\ldots, x_{n-1})
+        \\textsf{logw_next}(x_n | x_1, \\ldots, x_{n-1}) = \\textsf{score}(x_1, \\ldots, x_n) - \\textsf{prefix}(x_1, \\ldots, x_{n-1})
         $$
-        for $x_n \\in \\textsf{decode\_eos}$, i.e., the potential's vocabulary and end-of-sequence token.
+        for $x_n \\in \\textsf{decode_eos}$, i.e., the potential's vocabulary and end-of-sequence token.
 
         Args:
             context (list): Context to test.
@@ -103,7 +103,7 @@ class PotentialTests:
         For a `context` of tokens $x_1, \\ldots, x_n$, this checks (in log space) whether:
 
         $$
-        \\textsf{complete}(x_1, \\ldots, x_n) - \\textsf{prefix}(\epsilon) = \\textsf{logw\_next}(x_1, \\ldots, x_{n})[\\textsf{EOS}] + \\sum_{i=1}^{n} \\textsf{logw\_next}(x_1, \\ldots, x_{i-1})[x_i]
+        \\textsf{complete}(x_1, \\ldots, x_n) - \\textsf{prefix}(\\epsilon) = \\textsf{logw_next}(\\textsf{eos} \\mid x_1, \\ldots, x_{n}) + \\sum_{i=1}^{n} \\textsf{logw_next}(x_i \\mid x_1, \\ldots, x_{i-1})
         $$
         where $\\epsilon$ is the empty sequence.
 
