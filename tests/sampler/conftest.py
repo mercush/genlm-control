@@ -22,8 +22,7 @@ class MockPotential(Potential):
 
 
 @st.composite
-def mock_params(draw, max_w=1e3):
-    # Sample bytes or strings as iterables.
+def mock_vocab(draw):
     item_strategy = draw(
         st.sampled_from(
             (
@@ -34,16 +33,26 @@ def mock_params(draw, max_w=1e3):
     )
 
     # Sample vocabulary of iterables.
-    iter_vocab = draw(st.lists(item_strategy, min_size=1, max_size=10, unique=True))
+    vocab = draw(st.lists(item_strategy, min_size=1, max_size=10, unique=True))
+    return vocab
 
-    # Sample weights over iterables vocabulary and EOS.
-    iter_next_token_ws = draw(
+
+@st.composite
+def mock_vocab_and_ws(draw, max_w=1e3):
+    vocab = draw(mock_vocab())
+    ws = draw(
         st.lists(
             st.floats(1e-5, max_w),
-            min_size=len(iter_vocab) + 1,
-            max_size=len(iter_vocab) + 1,
+            min_size=len(vocab) + 1,
+            max_size=len(vocab) + 1,
         )
     )
+    return vocab, ws
+
+
+@st.composite
+def mock_params(draw, max_w=1e3):
+    iter_vocab, iter_next_token_ws = draw(mock_vocab_and_ws())
 
     # Sample context from iter_vocab
     context = draw(st.lists(st.sampled_from(iter_vocab), min_size=0, max_size=10))

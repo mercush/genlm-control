@@ -16,7 +16,10 @@ class InferenceEngine:
             if not unit_sampler.token_type == critic.token_type:
                 raise ValueError(
                     "`critic` must have the same token type as the `unit_sampler`. "
-                    f"Got {unit_sampler.token_type} and {critic.token_type}"
+                    f"Got {unit_sampler.token_type} and {critic.token_type}."
+                    f"\nMaybe you forgot to coerce the critic to the token type of the unit sampler? See `Coerce`."
+                    if critic.token_type.is_iterable_of(unit_sampler.token_type)
+                    else ""
                 )
 
         self.unit_sampler = unit_sampler

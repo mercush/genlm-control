@@ -24,6 +24,9 @@ class EndOfSequence:
     def __iter__(self):
         return iter([self])
 
+    def __len__(self):
+        return 1
+
 
 EOS = EndOfSequence("EOS")
 EOT = EndOfSequence("EOT")
