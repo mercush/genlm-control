@@ -20,10 +20,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
     - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a *prefix* of the language.
     - `logw_next`: Compute the next-token log weights of each token in the vocabulary and a special EOS (end-of-sequence) token given a context.
 
-    Subclasses must minimally implement `complete` and `prefix`. `logw_next` and the batched versions of the above methods
+    Subclasses must minimally implement `complete` and `prefix`. `logw_next` and the batch methods
     come with default implementations, but may be overridden by subclasses for improved performance.
 
-    All Potentials must satisfy a set of properties which can be tested using [PotentialTests](genlm_control.potential.testing.PotentialTests).
+    All Potentials must satisfy a set of properties which can be tested using [PotentialTests](testing.md#genlm_control.potential.testing.PotentialTests).
 
     Attributes:
         token_type (TokenType): The type of tokens in the vocabulary.

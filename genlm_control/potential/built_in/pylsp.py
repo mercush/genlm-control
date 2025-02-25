@@ -11,7 +11,12 @@ from genlm_control.potential.base import Potential
 
 
 class PythonLSP(Potential):
-    """A potential that uses a language server to lint code incrementally."""
+    """
+    A potential that uses a language server to lint code incrementally.
+
+    Warning:
+        This potential is still in an experimental stage.
+    """
 
     def __init__(self):
         self.server = LSPDiagnosticServer("python")

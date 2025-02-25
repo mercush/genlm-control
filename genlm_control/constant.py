@@ -1,5 +1,5 @@
 class EndOfSequence:
-    """Special sentinel token for end-of-sequence."""
+    """End-of-sequence tokens."""
 
     def __init__(self, type_="EOS"):
         self.type_ = type_

@@ -25,21 +25,23 @@ class PotentialOps:
 
         return Product(self, other)
 
-    def coerce(self, other, f):
+    def coerce(self, other, f, prune=True):
         """Coerce the current potential to operate on the vocabulary of another potential.
 
         See [`Coerced`][genlm_control.potential.coerce.Coerced] for more details.
 
         Args:
             other (Potential): The potential instance whose vocabulary will be used.
-            f (callable): A function mapping tokens from self's vocab to other's vocab
+            f (callable): A function mapping sequences of tokens from self's vocab to sequences of tokens from other's vocab.
+            prune (bool): Whether to prune the coerced potential's vocabulary to only include tokens that can be mapped to the original potential's vocabulary.
+                If `False`, the coerced potential's vocabulary will include all tokens from the target vocabulary.
 
         Returns:
             (Coerced): A Potential that operates on the vocabulary of `other`.
         """
         from genlm_control.potential.coerce import Coerced
 
-        return Coerced(self, other.decode, f=f)
+        return Coerced(self, other.decode, f=f, prune=prune)
 
     def to_autobatched(self):
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.

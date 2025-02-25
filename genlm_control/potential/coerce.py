@@ -15,20 +15,38 @@ class Coerced(Potential):
     maps any input token sequences from the target vocabulary to the original potential's vocabulary
     using the coercion function.
 
+    Formally, if $f$ is the coercion function, then for any sequence $x_1, \\ldots, x_n$ of tokens from the target vocabulary,
+    $$
+    \\textsf{Coerced.prefix}(x_1, \\ldots, x_n) = \\textsf{Coerced.potential.prefix}(f(x_1, \\ldots, x_n))
+    $$
+
+    $$
+    \\textsf{Coerced.complete}(x_1, \\ldots, x_n) = \\textsf{Coerced.potential.complete}(f(x_1, \\ldots, x_n))
+    $$
+
     Attributes:
         potential (Potential): The original potential instance that is being coerced.
-        f (callable): A function that maps sequences of tokens from the target vocabulary to the original potential's vocabulary.
+        f (callable): A function that maps sequences of tokens from the target vocabulary to sequences of tokens from
+            the original potential's vocabulary.
+
+    Note:
+        The coerced potential's vocabulary will by default be pruned to only include tokens that can be mapped to the original potential's vocabulary
+        via the coercion function (i.e. `set(f([x])) <= set(potential.decode)`). If no such tokens are found, a `ValueError` is raised.
+        This behavior can be overridden by setting `prune=False`, in which case the coerced potential's vocabulary will include all tokens from the target vocabulary.
     """
 
-    def __init__(self, potential, target_vocab, f):
+    def __init__(self, potential, target_vocab, f, prune=True):
         """
         Initialize a Coerced potential.
 
         Args:
             potential (Potential): The original potential instance that is being coerced.
             target_vocab (list): The target vocabulary that the potential will operate on.
+                Each element of `target_vocab` must be hashable.
             f (callable): A function that maps iterables of tokens from the target vocabulary
                 to the original potential's vocabulary.
+            prune (bool): Whether to prune the coerced potential's vocabulary to only include tokens that can be mapped to the original potential's vocabulary.
+                If `False`, the coerced potential's vocabulary will include all tokens from the target vocabulary.
 
         Raises:
             ValueError: If no valid tokens are found in the target vocabulary that can be mapped to the original potential's vocabulary.
@@ -38,8 +56,11 @@ class Coerced(Potential):
 
         valid_tokens = []
         for target_token in target_vocab:
-            base_token = f([target_token])
-            if set(base_token) <= set(potential.decode):
+            if prune:
+                base_token = f([target_token])
+                if set(base_token) <= set(potential.decode):
+                    valid_tokens.append(target_token)
+            else:
                 valid_tokens.append(target_token)
 
         if not valid_tokens:

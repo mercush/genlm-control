@@ -7,13 +7,15 @@ class Product(Potential):
     """
     Combine two potential instances via element-wise multiplication (sum in log space).
 
-    This class creates a new potential that is the element-wise product of two potentials.
-    For example,
+    This class creates a new potential that is the element-wise product of two potentials:
     ```
     prefix(xs) = p1.prefix(xs) + p2.prefix(xs)
+    ```,
+    ```
+    complete(xs) = p1.complete(xs) + p2.complete(xs)
     ```
     and
-    ```
+     ```
     logw_next(x | xs) = p1.logw_next(x | xs) + p2.logw_next(x | xs)
     ```
 
