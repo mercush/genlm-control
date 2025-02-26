@@ -383,3 +383,6 @@ class PromptedLLM(Potential):
             eos_tokens=eos_tokens.copy(),
             temperature=self.temperature,
         )
+
+    def to_autobatched(self):
+        raise ValueError("PromptedLLMs are autobatched by default.")
