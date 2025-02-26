@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 from genlm_grammar import Float, Log
 from arsenal.maths import logsumexp
@@ -213,6 +212,8 @@ def load_trie(V, backend=None, **kwargs):
     Returns:
         (TokenCharacterTrie): A trie instance.
     """
+    import torch
+
     if backend is None:
         backend = "parallel" if torch.cuda.is_available() else "sequential"
 

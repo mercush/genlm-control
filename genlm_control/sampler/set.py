@@ -96,11 +96,16 @@ class TrieSetSampler(SetSampler):
             self.iter_potential.decode_eos, backend="parallel"
         )
         self.trie = self.trie_executor.trie
-        self.leaf_to_token_id = {
-            leaf: self.target.encode_eos[token]
-            for token, leaf in self.trie.word2leaf.items()
-            if token in self.target.decode_eos
-        }
+
+        decode_eos = self.target.decode_eos
+        word2leaf = self.trie.word2leaf
+        encode_eos = self.target.encode_eos
+
+        common_tokens = set(decode_eos) & set(word2leaf)
+
+        self.leaf_to_token_id = dict(
+            (word2leaf[token], encode_eos[token]) for token in common_tokens
+        )
 
     async def sample_set(self, context):
         """
