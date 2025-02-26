@@ -271,3 +271,11 @@ class Potential(ABC, PotentialOps, PotentialTests):
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."
         )
+
+    async def cleanup(self):
+        """
+        Cleanup the potential.
+
+        This method may be implemented by subclasses to release resources.
+        """
+        pass

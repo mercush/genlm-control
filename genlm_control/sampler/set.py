@@ -1,4 +1,3 @@
-import asyncio
 import numpy as np
 from genlm_grammar import Float
 from arsenal.maths import sample_dict, logsumexp
@@ -126,13 +125,7 @@ class TrieSetSampler(SetSampler):
         """
         Cleanup the TrieSetSampler. It is recommended to call this method at the end of usage.
         """
-        if task := getattr(self.trie_executor, "_task", None):
-            if not task.done() and not task.cancelled():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        await self.trie_executor.cleanup()
 
 
 class EagerSetSampler(TrieSetSampler):

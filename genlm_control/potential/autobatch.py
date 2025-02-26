@@ -74,14 +74,11 @@ class AutoBatchedPotential(Potential):
 
     async def cleanup(self):
         """Async cleanup - preferred method"""
-        if self.background_loop:
-            await self.background_loop.cleanup()
-            self.background_loop = None
+        await self.background_loop.cleanup()
 
     def __del__(self):
         if loop := getattr(self, "background_loop", None):
             loop.close()
-            self.background_loop = None
 
 
 class AsyncBatchLoop:
@@ -143,7 +140,10 @@ class AsyncBatchLoop:
     def close(self):
         """Stop the background processing task and cleanup resources."""
         if task := getattr(self, "task", None):
-            task.cancel()
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass  # ignore runtime errors that might occur if event loop is closed
             self.task = None
 
     async def cleanup(self):
