@@ -10,67 +10,91 @@ from transformers import (
     DistilBertForSequenceClassification,
 )  # For sentiment analysis.
 
+# This file runs through a number of examples of using the `genlm-control` library
+# to generate text subject to contraints encoded by potentials. This is a good
+# starting point for understanding how to build increasingly complex genlm-control programs.
+# Refer to the documentation for any details on the methods and classes used below.
+
 
 async def main():
     # =============== Basic LLM Sampling =============== #
 
-    # Load gpt2 (or any other HuggingFace model) using the HuggingFace backend
-    # (Setting backend='vllm' will be much faster, but requires a GPU)
+    # Load gpt2 (or any other HuggingFace model) using the HuggingFace backend.
+    # Set temperature to 0.5 to make the outputs less random.
+    # Setting backend='vllm' will be much faster, but requires a GPU.
     mtl_llm = PromptedLLM.from_name("gpt2", backend="hf", temperature=0.5)
 
-    # Set the fixed prompt prefix for the language model
+    # Set the fixed prompt prefix for the language model.
+    # All language model predictions will be conditioned on this prompt.
+    # Under the hood, this tokenizes the string into token ids using the model's tokenizer.
     mtl_llm.set_prompt_from_str("Montreal is")
 
-    # Load a sampler that proposes tokens by sampling directly from the LM's distribution
+    # Load a sampler that proposes tokens by sampling directly from the LM's distribution.
     sampler = direct_token_sampler(mtl_llm)
 
-    # Create an inference engine
+    # Create an inference engine. This is the main object that will be used for
+    # generation using sequence Monte Carlo (SMC).
     engine = InferenceEngine(sampler)
 
-    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5
+    # Run SMC with 10 particles, a maximum of 10 tokens, and an ESS threshold of 0.5.
     sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nBasic sampling result:")
     print(sequences.posterior)
 
     # Note: Sequences are lists of `bytes` objects because each token in the language model's
-    # vocabulary is represented as a bytes object. In later examples, we'll see that this will make it
-    # easy to combine LLM's with other potentials that operate over bytes.
+    # vocabulary is represented as a bytes object.
 
     # =============== Prompt Intersection =============== #
 
-    # Spawn a new language model (shallow copy, sharing the same underlying model)
+    # Spawn a new language model (shallow copy, sharing the same underlying model).
     bos_llm = mtl_llm.spawn()
     bos_llm.set_prompt_from_str("Boston is")
 
     # Take the product of the two language models
+    # This defines a `Product` potential which is the element-wise product of the two LMs.
     product = mtl_llm * bos_llm
 
-    # Create a sampler that proposes tokens by sampling directly from the product's distribution
+    # Create a sampler that proposes tokens by sampling directly from the product.
     sampler = direct_token_sampler(product)
 
-    # Create an inference engine
+    # Create an inference engine.
     engine = InferenceEngine(sampler)
 
-    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5
+    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
     sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nPrompt intersection result:")
     print(sequences.posterior)
 
     # =============== Adding Regex Constraint =============== #
-    best_fsa = BoolFSA.from_regex(r"is\sthe\s(best|worst).*")
+
+    # Create a regex constraint that matches strings containing the word "the"
+    # followed by either "best" or "worst" and then any number of tokens.
+    best_fsa = BoolFSA.from_regex(r"\sthe\s(best|worst).*")
+
+    # By default, BoolFSA's are defined over individual bytes. This means that
+    # their `prefix` and `complete` methods are called on byte sequences.
+    print("best_fsa.prefix(b'the bes') =", await best_fsa.prefix(b"the bes"))
+    print(
+        "best_fsa.complete(b'the best city') =",
+        await best_fsa.complete(b"the best city"),
+    )
 
     # The following is valid but will be slow!
+    # It is slow because it will require calling the fsa on the
+    # full product vocabulary at each step of token generation.
     # slow_sampler = direct_token_sampler(
     #    product * best_fsa.coerce(product, f=b''.join)
     # )
 
     # This sampler is much faster.
+    # It will only call the fsa on a subset of the product vocabulary,
+    # but maintains the same proper weighting guarantees as the direct sampler.
     sampler = eager_token_sampler(product, best_fsa)
 
-    # Create an inference engine
+    # Create an inference engine.
     engine = InferenceEngine(sampler)
 
-    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5
+    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
     sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nPrompt intersection with regex constraint result:")
     print(sequences.posterior)
@@ -78,7 +102,9 @@ async def main():
     # =============== Custom Sentiment Analysis Potential =============== #
 
     # Create our own custom potential for sentiment analysis.
-    # This potential has a vocabulary of bytes.
+    # Custom potentials must subclass `Potential` and implement the `prefix` and `complete` methods.
+    # They can also override other methods, like `batch_prefix`, and `batch_complete` for improved performance.
+    # Each Potential needs to specify its vocabulary of tokens; this potential has a vocabulary of individualbytes.
     class SentimentAnalysis(Potential):
         def __init__(self, model, tokenizer, sentiment="POSITIVE"):
             self.model = model
@@ -88,7 +114,9 @@ async def main():
             if self.sentiment_idx is None:
                 raise ValueError(f"Sentiment {sentiment} not found in model labels")
 
-            super().__init__(vocabulary=list(range(256)))  # Defined over bytes
+            super().__init__(
+                vocabulary=list(range(256))
+            )  # Defined over bytes (ints in the range [0, 255]).
 
         def _forward(self, contexts):
             strings = [
@@ -121,11 +149,17 @@ async def main():
 
     # Verify the potential
     print("\nSentiment analysis test:")
+    # Check that our potential is working as expected. We should expect higher log weights
+    # for more positive sequences.
     print(
+        "sentiment_analysis.prefix(b'so good') =",
         await sentiment_analysis.prefix(b"so good"),
+    )
+    print(
+        "sentiment_analysis.prefix(b'so bad') =",
         await sentiment_analysis.prefix(b"so bad"),
     )
-    # Check that it satisfies the Potential contract on a given example
+    # Check that it satisfies the Potential contract for a given example.
     await sentiment_analysis.assert_logw_next_consistency(b"the best", top=5)
     await sentiment_analysis.assert_autoreg_fact(b"the best")
 
@@ -135,30 +169,40 @@ async def main():
     # )
 
     # This setup will be much faster.
+    # It will only call the sentiment analysis potential only once per particle per step,
+    # but maintains the same proper weighting guarantees as the eager sampler.
     sampler = eager_token_sampler(product, best_fsa)
     critic = sentiment_analysis.coerce(sampler.target, f=b"".join)
     engine = InferenceEngine(sampler, critic=critic)
 
-    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5
-    with timeit("Sentiment-guided sampling (without autobatching)"):
+    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
+    # We also time this inference run for comparison with the next example.
+    with timeit("Timing sentiment-guided sampling without autobatching"):
         sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nSentiment-guided sampling result:")
     print(sequences.posterior)
 
     # =============== Optimizing with Autobatching =============== #
 
+    # Under the hood, all requests to the sentiment analysis potential are
+    # made to the instance methods (`prefix`, `complete`). We can take advantage
+    # of the fact that we have parallelized batch versions of these methods using
+    # the `to_autobatched` method.
+
     # This creates a new potential that automatically batches concurrent
     # requests to the instance methods (`prefix`, `complete`, `logw_next`)
     # and processes them using the batch methods (`batch_complete`, `batch_prefix`, `batch_logw_next`).
     critic = critic.to_autobatched()
 
-    # Create an inference engine
+    # Create an inference engine.
     engine = InferenceEngine(sampler, critic=critic)
 
-    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5
-    with timeit("Sentiment-guided sampling (with autobatching)"):
+    # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
+    # If you are running this on a machine with a GPU, you should
+    # see a significant performance improvement.
+    with timeit("Timing sentiment-guided sampling with autobatching"):
         sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
-    print("\nAutobatched sampling result:")
+    print("\nSentiment-guided sampling with autobatching result:")
     print(sequences.posterior)
 
 
