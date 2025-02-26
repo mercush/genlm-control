@@ -3,17 +3,21 @@ import warnings
 import numpy as np
 from typing import NamedTuple
 from arsenal.maths import logsumexp
-
 from genlm_control.potential.base import Potential
-from genlm_backend.llm import AsyncVirtualLM, AsyncTransformer, MockAsyncLM
 
 
 def load_model_by_name(name, backend, **kwargs):
     if backend == "vllm":
+        from genlm_backend.llm import AsyncVirtualLM
+
         model_cls = AsyncVirtualLM
     elif backend == "hf":
+        from genlm_backend.llm import AsyncTransformer
+
         model_cls = AsyncTransformer
     elif backend == "mock":
+        from genlm_backend.llm import MockAsyncLM
+
         model_cls = MockAsyncLM
     else:
         raise ValueError(
@@ -356,7 +360,10 @@ class PromptedLLM(Potential):
             This is a shallow copy. The new PromptedLLM will share the underlying AsyncLM instance.
         """
         return PromptedLLM(
-            self.model, prompt_ids=self.prompt_ids, eos_tokens=self._eos_tokens
+            self.model,
+            prompt_ids=self.prompt_ids.copy(),
+            eos_tokens=self._eos_tokens.copy(),
+            temperature=self.temperature,
         )
 
     def spawn_new_eos(self, eos_tokens):
@@ -371,5 +378,11 @@ class PromptedLLM(Potential):
                 The new model will have the same prompt_ids as `self`.
         """
         return PromptedLLM(
-            self.model, prompt_ids=self.prompt_ids, eos_tokens=eos_tokens
+            self.model,
+            prompt_ids=self.prompt_ids.copy(),
+            eos_tokens=eos_tokens.copy(),
+            temperature=self.temperature,
         )
+
+    def to_autobatched(self):
+        raise ValueError("PromptedLLMs are autobatched by default.")

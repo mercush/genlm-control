@@ -1,4 +1,3 @@
-import asyncio
 import numpy as np
 from genlm_grammar import Float
 from arsenal.maths import sample_dict, logsumexp
@@ -96,11 +95,16 @@ class TrieSetSampler(SetSampler):
             self.iter_potential.decode_eos, backend="parallel"
         )
         self.trie = self.trie_executor.trie
-        self.leaf_to_token_id = {
-            leaf: self.target.encode_eos[token]
-            for token, leaf in self.trie.word2leaf.items()
-            if token in self.target.decode_eos
-        }
+
+        decode_eos = self.target.decode_eos
+        word2leaf = self.trie.word2leaf
+        encode_eos = self.target.encode_eos
+
+        common_tokens = set(decode_eos) & set(word2leaf)
+
+        self.leaf_to_token_id = dict(
+            (word2leaf[token], encode_eos[token]) for token in common_tokens
+        )
 
     async def sample_set(self, context):
         """
@@ -121,13 +125,7 @@ class TrieSetSampler(SetSampler):
         """
         Cleanup the TrieSetSampler. It is recommended to call this method at the end of usage.
         """
-        if task := getattr(self.trie_executor, "_task", None):
-            if not task.done() and not task.cancelled():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        await self.trie_executor.cleanup()
 
 
 class EagerSetSampler(TrieSetSampler):

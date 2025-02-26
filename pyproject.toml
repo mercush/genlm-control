@@ -37,3 +37,6 @@ docs = [
     "mkdocs-literate-nav",
     "mkdocs-section-index",
 ]
+
+[tool.setuptools]
+packages = ["genlm_control"]

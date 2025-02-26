@@ -146,6 +146,8 @@ async def test_new_eos_tokens(llm, params):
     eos_tokens = [llm.token_maps.decode[x] for x in eos_token_ids]
     new_llm = llm.spawn_new_eos(eos_tokens=eos_tokens)
 
+    new_llm.temperature = 1.0
+
     assert new_llm.prompt_ids == prompt_ids  # check prompt_ids is not changed
     assert new_llm.token_maps.eos_idxs == eos_token_ids
     assert set(new_llm.token_maps.decode) - set(eos_tokens) == set(new_llm.decode)

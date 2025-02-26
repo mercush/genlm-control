@@ -108,3 +108,5 @@ class InferenceEngine:
             ```
         """
         await self.unit_sampler.cleanup()
+        if self.critic:
+            await self.critic.cleanup()
