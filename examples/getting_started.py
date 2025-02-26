@@ -10,9 +10,8 @@ from transformers import (
     DistilBertForSequenceClassification,
 )  # For sentiment analysis.
 
-# This file runs through a number of examples of using the `genlm-control` library
-# to generate text subject to contraints encoded by potentials. This is a good
-# starting point for understanding how to build increasingly complex genlm-control programs.
+# This file runs through a number of examples of using the `genlm-control` library.
+# This is a good starting point for understanding how to build increasingly complex genlm-control programs.
 # Refer to the documentation for any details on the methods and classes used below.
 
 
@@ -20,13 +19,13 @@ async def main():
     # =============== Basic LLM Sampling =============== #
 
     # Load gpt2 (or any other HuggingFace model) using the HuggingFace backend.
-    # Set temperature to 0.5 to make the outputs less random.
+    # Set temperature to 0.5 for less variation in outputs.
     # Setting backend='vllm' will be much faster, but requires a GPU.
     mtl_llm = PromptedLLM.from_name("gpt2", backend="hf", temperature=0.5)
 
     # Set the fixed prompt prefix for the language model.
     # All language model predictions will be conditioned on this prompt.
-    # Under the hood, this tokenizes the string into token ids using the model's tokenizer.
+    # Under the hood, this converts the string into a sequence of token ids using the model's tokenizer.
     mtl_llm.set_prompt_from_str("Montreal is")
 
     # Load a sampler that proposes tokens by sampling directly from the LM's distribution.
@@ -50,7 +49,7 @@ async def main():
     bos_llm = mtl_llm.spawn()
     bos_llm.set_prompt_from_str("Boston is")
 
-    # Take the product of the two language models
+    # Take the product of the two language models.
     # This defines a `Product` potential which is the element-wise product of the two LMs.
     product = mtl_llm * bos_llm
 
@@ -67,8 +66,8 @@ async def main():
 
     # =============== Adding Regex Constraint =============== #
 
-    # Create a regex constraint that matches strings containing the word "the"
-    # followed by either "best" or "worst" and then any number of tokens.
+    # Create a regex constraint that matches sequences containing the word "the"
+    # followed by either "best" or "worst" and then anything else.
     best_fsa = BoolFSA.from_regex(r"\sthe\s(best|worst).*")
 
     # By default, BoolFSA's are defined over individual bytes. This means that
@@ -104,7 +103,7 @@ async def main():
     # Create our own custom potential for sentiment analysis.
     # Custom potentials must subclass `Potential` and implement the `prefix` and `complete` methods.
     # They can also override other methods, like `batch_prefix`, and `batch_complete` for improved performance.
-    # Each Potential needs to specify its vocabulary of tokens; this potential has a vocabulary of individualbytes.
+    # Each Potential needs to specify its vocabulary of tokens; this potential has a vocabulary of individual bytes.
     class SentimentAnalysis(Potential):
         def __init__(self, model, tokenizer, sentiment="POSITIVE"):
             self.model = model
@@ -184,7 +183,7 @@ async def main():
 
     # =============== Optimizing with Autobatching =============== #
 
-    # Under the hood, all requests to the sentiment analysis potential are
+    # During inference, all requests to the sentiment analysis potential are
     # made to the instance methods (`prefix`, `complete`). We can take advantage
     # of the fact that we have parallelized batch versions of these methods using
     # the `to_autobatched` method.
