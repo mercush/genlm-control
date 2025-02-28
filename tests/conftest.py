@@ -9,7 +9,7 @@ class MockPotential(Potential):
         super().__init__(vocab)
 
     def _logw(self, context):
-        return sum([self.next_token_logws[self.encode[i]] for i in context])
+        return sum([self.next_token_logws[self.lookup[i]] for i in context])
 
     async def prefix(self, context):
         return self._logw(context)

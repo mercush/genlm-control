@@ -153,7 +153,7 @@ class WFSA(Potential):
         log_ws = np.array(
             [
                 np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float("-inf")
-                for b in self.decode_eos
+                for b in self.vocab_eos
             ]
         )
 

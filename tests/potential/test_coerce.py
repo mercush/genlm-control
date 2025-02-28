@@ -25,7 +25,7 @@ async def test_simple():
     c = Coerced(p, [b"aa", b"bb", b"aab", b"aad"], f=b"".join)
 
     assert c.token_type == Atomic(bytes)
-    assert set(c.decode) == {b"aa", b"bb", b"aab"}
+    assert set(c.vocab) == {b"aa", b"bb", b"aab"}
 
     have = await c.complete([b"aa", b"bb"])
     want = await p.complete(b"aabb")
@@ -40,7 +40,7 @@ async def test_simple():
     assert have == want
 
     have = await c.logw_next([b"aa", b"bb"])
-    for x in c.decode_eos:
+    for x in c.vocab_eos:
         want = await p.score(b"aabb" + x) - await p.prefix(b"aabb")
         assert have[x] == want, [have[x], want, x]
 
@@ -86,8 +86,8 @@ async def test_coerced_custom():
 
     assert coerced.token_type == Atomic(bytes)
 
-    assert len(coerced.decode) == 2
-    assert set(coerced.decode) == {b"aa", b"bb"}
+    assert len(coerced.vocab) == 2
+    assert set(coerced.vocab) == {b"aa", b"bb"}
 
     have = await coerced.complete([b"aa", b"bb"])
     want = await mock_potential.complete(b"ab")

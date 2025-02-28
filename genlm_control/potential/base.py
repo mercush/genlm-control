@@ -27,11 +27,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
     Attributes:
         token_type (TokenType): The type of tokens in the vocabulary.
-        decode (list): List of tokens making up the vocabulary.
-        encode (dict): Mapping from tokens to their indices in `decode`.
+        vocab (list): List of tokens making up the vocabulary.
         eos (EndOfSequence): Special token to use as end-of-sequence.
-        decode_eos (list): List of tokens in `decode` and `eos`. `eos` is assumed to be the last token in `decode_eos`.
-        encode_eos (dict): Mapping from tokens to their indices in `decode_eos`.
+        vocab_eos (list): List of tokens in `vocab` and `eos`. `eos` is assumed to be the last token in `vocab_eos`.
+        lookup (dict): Mapping from tokens and `eos` to their indices in `vocab_eos`.
     """
 
     def __init__(self, vocabulary, token_type=None, eos=None):
@@ -50,7 +49,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
             TypeError: If vocabulary contains tokens which are not of `token_type`.
         """
         if not vocabulary:
-            raise ValueError("Vocabulary cannot be empty")
+            raise ValueError("vocabocabulary cannot be empty")
 
         if token_type is None:
             token_type = infer_vocabulary_type(vocabulary)
@@ -66,14 +65,14 @@ class Potential(ABC, PotentialOps, PotentialTests):
         self.eos = eos or EOS
 
         self.token_type = token_type
-        self.decode = vocabulary
-        self.encode = {}
+        self.vocab = vocabulary
+        self.vocab_eos = self.vocab + [self.eos]
+        self.lookup = {}
         for i, x in enumerate(vocabulary):
-            if x in self.encode:
+            if x in self.lookup:
                 raise ValueError(f"Duplicate token {x!r} found in vocabulary")
-            self.encode[x] = i
-        self.decode_eos = self.decode + [self.eos]
-        self.encode_eos = {**self.encode, **{self.eos: len(self.decode)}}
+            self.lookup[x] = i
+        self.lookup[self.eos] = len(self.vocab)
 
     ####################
     # Instance methods #
@@ -117,7 +116,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         return (await self.batch_score([context]))[0]
 
     async def logw_next(self, context):
-        """Compute the next-token weights of each token in `self.decode_eos` given `context`.
+        """Compute the next-token weights of each token in `self.vocab_eos` given `context`.
 
         Args:
             context (list): Sequence of tokens.
@@ -130,7 +129,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         if ctx_log_w == float("-inf"):
             raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
 
-        scores = await self.batch_score([[*context, x] for x in self.decode_eos])
+        scores = await self.batch_score([[*context, x] for x in self.vocab_eos])
         logws = scores - ctx_log_w
 
         return self.make_lazy_weights(logws)
@@ -193,7 +192,8 @@ class Potential(ABC, PotentialOps, PotentialTests):
         complete_indices, prefix_indices = [], []
 
         for i, context in enumerate(contexts):
-            if context and context[-1] is self.eos:
+            # We want == here instead of `is`.
+            if context and context[-1] == self.eos:
                 complete.append(context[:-1])
                 complete_indices.append(i)
             else:
@@ -216,7 +216,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def batch_logw_next(self, contexts):
         """Batched equivalent to `logw_next`.
 
-        Computes the next-token weights of each token in `self.decode_eos` given each context in the batch.
+        Computes the next-token weights of each token in `self.vocab_eos` given each context in the batch.
 
         Args:
             contexts (list): List of sequences of tokens.
@@ -244,10 +244,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
             log (bool, optional): Whether the weights are in log space. Defaults to True.
 
         Returns:
-            (LazyWeights): LazyWeights object defined over `self.decode_eos`.
+            (LazyWeights): LazyWeights object defined over `self.vocab_eos`.
         """
         return LazyWeights(
-            weights=weights, encode=self.encode_eos, decode=self.decode_eos, log=log
+            weights=weights, encode=self.lookup, decode=self.vocab_eos, log=log
         )
 
     def alloc_logws(self, default=float("-inf")):
@@ -257,9 +257,9 @@ class Potential(ABC, PotentialOps, PotentialTests):
             default (float, optional): Default log weight. Defaults to -inf.
 
         Returns:
-            (np.array): Array of length `len(self.decode_eos)` filled with `default`.
+            (np.array): Array of length `len(self.vocab_eos)` filled with `default`.
         """
-        return np.full((len(self.decode_eos),), default)
+        return np.full((len(self.vocab_eos),), default)
 
     def spawn(self):
         """

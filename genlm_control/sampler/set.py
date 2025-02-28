@@ -13,7 +13,7 @@ class SetSampler(ABC):
 
     A set sampler samples a weighted set of tokens from a the vocabulary of a `target` potential.
 
-    Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the target potential's vocabulary and a sampled set of tokens $S \\subseteq \\textsf{target.decode_eos}$,
+    Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the target potential's vocabulary and a sampled set of tokens $S \\subseteq \\textsf{target.vocab_eos}$,
     the log-weight associated with each token $x_n$ must correspond to:
 
     $$
@@ -92,18 +92,18 @@ class TrieSetSampler(SetSampler):
         )
 
         self.trie_executor = load_async_trie(
-            self.iter_potential.decode_eos, backend="parallel"
+            self.iter_potential.vocab_eos, backend="parallel"
         )
         self.trie = self.trie_executor.trie
 
-        decode_eos = self.target.decode_eos
+        vocab_eos = self.target.vocab_eos
         word2leaf = self.trie.word2leaf
-        encode_eos = self.target.encode_eos
+        lookup = self.target.lookup
 
-        common_tokens = set(decode_eos) & set(word2leaf)
+        common_tokens = set(vocab_eos) & set(word2leaf)
 
         self.leaf_to_token_id = dict(
-            (word2leaf[token], encode_eos[token]) for token in common_tokens
+            (word2leaf[token], lookup[token]) for token in common_tokens
         )
 
     async def sample_set(self, context):
@@ -253,7 +253,7 @@ class TopKSetSampler(TrieSetSampler):
             W_wc = Float.chart(
                 {
                     token_id: iter_ws[token]
-                    for token_id, token in enumerate(self.target.decode_eos)
+                    for token_id, token in enumerate(self.target.vocab_eos)
                     if not sampled[token_id]
                 }
             )
@@ -263,7 +263,7 @@ class TopKSetSampler(TrieSetSampler):
                 P_wc = W_wc.normalize()
                 wc_id = draw(P_wc)
                 logp_wc = np.log(P_wc[wc_id])
-                wc = self.target.decode_eos[wc_id]
+                wc = self.target.vocab_eos[wc_id]
                 item_ctx = self.f(context)
                 prefix_w = await self.item_potential.prefix(item_ctx)
                 if wc is EOS:

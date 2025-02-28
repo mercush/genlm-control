@@ -29,9 +29,9 @@ class MultiProcPotential(Potential):
             initializer=self._init_worker,
             initargs=(potential_factory, factory_args),
         )
-        # Get decode from one of the workers
-        decode = self.executor.submit(self._get_decode).result()
-        super().__init__(decode)
+        # Get vocab and eos from one of the workers
+        vocab, eos = self.executor.submit(self._get_vocab_and_eos).result()
+        super().__init__(vocab, eos=eos)
 
     @staticmethod
     def _init_worker(factory, args):
@@ -41,8 +41,8 @@ class MultiProcPotential(Potential):
         asyncio.set_event_loop(_worker_event_loop)
 
     @staticmethod
-    def _get_decode():
-        return _worker_potential.decode
+    def _get_vocab_and_eos():
+        return _worker_potential.vocab, _worker_potential.eos
 
     @staticmethod
     def _run_coroutine(coroutine):

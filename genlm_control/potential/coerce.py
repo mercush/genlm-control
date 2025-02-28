@@ -31,7 +31,7 @@ class Coerced(Potential):
 
     Note:
         The coerced potential's vocabulary will by default be pruned to only include tokens that can be mapped to the original potential's vocabulary
-        via the coercion function (i.e. `set(f([x])) <= set(potential.decode)`). If no such tokens are found, a `ValueError` is raised.
+        via the coercion function (i.e. `set(f([x])) <= set(potential.vocab)`). If no such tokens are found, a `ValueError` is raised.
         This behavior can be overridden by setting `prune=False`, in which case the coerced potential's vocabulary will include all tokens from the target vocabulary.
     """
 
@@ -58,7 +58,7 @@ class Coerced(Potential):
         for target_token in target_vocab:
             if prune:
                 base_token = f([target_token])
-                if set(base_token) <= set(potential.decode):
+                if set(base_token) <= set(potential.vocab):
                     valid_tokens.append(target_token)
             else:
                 valid_tokens.append(target_token)
@@ -82,7 +82,7 @@ class Coerced(Potential):
         ctx = self.f(context)
         ctx_w = await self.potential.prefix(ctx)
         Ws[-1] = await self.potential.complete(ctx) - ctx_w
-        exts = [self.f(chain(context, [x])) for x in self.decode]  # slow!!
+        exts = [self.f(chain(context, [x])) for x in self.vocab]  # slow!!
         Ws[:-1] = await self.potential.batch_prefix(exts) - ctx_w
         return self.make_lazy_weights(Ws)
 

@@ -40,8 +40,8 @@ def test_initialization(vocab, p1, p2):
     # Test successful initialization
     product = Product(p1, p2)
     assert product.token_type == Atomic(bytes)
-    assert len(product.decode) == len(vocab)
-    assert set(product.decode) == set(vocab)
+    assert len(product.vocab) == len(vocab)
+    assert set(product.vocab) == set(vocab)
 
     # Test mismatched token types
     class DifferentPotential(SimplePotential):
@@ -86,15 +86,15 @@ async def test_logw_next(product):
 
     # Test that weights are properly combined
     weights = result.weights
-    assert len(weights) == len(product.decode_eos)
+    assert len(weights) == len(product.vocab_eos)
 
     # Test individual token weights
-    for token in product.decode:
+    for token in product.vocab:
         extended = context + [token]
         score = await product.score(extended)
         prefix_score = await product.prefix(context)
         expected_weight = score - prefix_score
-        assert np.isclose(result.weights[product.encode_eos[token]], expected_weight)
+        assert np.isclose(result.weights[product.lookup[token]], expected_weight)
 
 
 @pytest.mark.asyncio

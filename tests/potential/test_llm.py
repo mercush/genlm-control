@@ -150,7 +150,7 @@ async def test_new_eos_tokens(llm, params):
 
     assert new_llm.prompt_ids == prompt_ids  # check prompt_ids is not changed
     assert new_llm.token_maps.eos_idxs == eos_token_ids
-    assert set(new_llm.token_maps.decode) - set(eos_tokens) == set(new_llm.decode)
+    assert set(new_llm.token_maps.decode) - set(eos_tokens) == set(new_llm.vocab)
 
     context = new_llm.decode_tokens(context_ids)
     have = await new_llm.complete(context)

@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 
-from genlm_control import EOS
 from genlm_control.potential import Potential, MultiProcPotential
 
 
@@ -36,7 +35,9 @@ async def test_mp_score(mp_potential, regular_potential):
     regular_score = await regular_potential.score(seq)
     assert mp_score == regular_score == -1.0
 
-    seq_terminated = seq + [EOS]
+    assert mp_potential.eos == regular_potential.eos
+
+    seq_terminated = seq + [regular_potential.eos]
     mp_score = await mp_potential.score(seq_terminated)
     regular_score = await regular_potential.score(seq_terminated)
     assert mp_score == regular_score == -2.0
@@ -44,7 +45,7 @@ async def test_mp_score(mp_potential, regular_potential):
 
 @pytest.mark.asyncio
 async def test_mp_batch_score(mp_potential, regular_potential):
-    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", EOS]]
+    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", regular_potential.eos]]
 
     have = await mp_potential.batch_score(contexts)
     want = await regular_potential.batch_score(contexts)
@@ -87,7 +88,7 @@ async def test_mp_logw_next(mp_potential, regular_potential):
 
 @pytest.mark.asyncio
 async def test_mp_batch_logw_next(mp_potential, regular_potential):
-    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", EOS]]
+    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", regular_potential.eos]]
     haves = await mp_potential.batch_logw_next(contexts)
     wants = await regular_potential.batch_logw_next(contexts)
     for have, want in zip(haves, wants):
