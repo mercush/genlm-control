@@ -1,10 +1,12 @@
 import string
 import numpy as np
+import warnings
+from arsenal.maths import logsumexp
 
-from genlm_grammar import Float
+from genlm_grammar import Float, Log, WFSA as BaseWFSA
 from genlm_grammar.lark_interface import interegular_to_wfsa
 
-from genlm_control.potential.base import Potential, EOS
+from genlm_control.potential.base import Potential
 
 
 class WFSA(Potential):
@@ -27,12 +29,23 @@ class WFSA(Potential):
             wfsa (genlm_grammar.WFSA): The weighted finite state automaton.
 
         Raises:
-            ValueError: If the semiring of the provided WFSA is not Float.
+            ValueError: If the semiring of the provided WFSA is not Float or Log.
+
+        Note:
+            The WFSA will be converted to the Log semiring to avoid underflow if the semiring is Float.
         """
-        self.wfsa = wfsa
-        if wfsa.R is not Float:
-            raise ValueError("Float semiring is required for WFSA potentials")
-        self.cache = {(): wfsa.epsremove.start}
+        if wfsa.R not in (Float, Log):
+            raise ValueError(f"Unsupported semiring: {wfsa.R}")
+
+        if wfsa.R is Float:
+            warnings.warn(
+                "Converting WFSA to log semiring to avoid underflow", UserWarning
+            )
+            self.wfsa = self._convert_to_log(wfsa)
+        else:
+            self.wfsa = wfsa
+
+        self.cache = {(): self.wfsa.epsremove.start}
         super().__init__(vocabulary=list(self.wfsa.alphabet))
 
     @classmethod
@@ -61,6 +74,24 @@ class WFSA(Potential):
         if to_bytes:
             wfsa = wfsa.to_bytes()
         return cls(wfsa=wfsa)
+
+    @staticmethod
+    def _convert_to_log(wfsa):
+        """Convert a WFSA from the Float semiring to the Log semiring."""
+        assert wfsa.R is Float
+        assert isinstance(wfsa, BaseWFSA)
+        new = BaseWFSA(Log)
+
+        for i, w in wfsa.I:
+            new.add_I(i, Log(np.log(w)))
+
+        for i, w in wfsa.F:
+            new.add_F(i, Log(np.log(w)))
+
+        for i, a, j, w in wfsa.arcs():
+            new.add_arc(i, a, j, Log(np.log(w)))
+
+        return new
 
     def _consume(self, bs):
         # XXX implement cache eviction
@@ -97,8 +128,22 @@ class WFSA(Potential):
         Returns:
             (float): Log weight of context under the WFSA.
         """
-        w = self.wfsa(context)
-        return np.log(w) if w > 0 else float("-inf")
+        # TODO: optimize to use _consume cache
+        return self.wfsa(context).score
+
+    def _prefix(self, context):
+        curr = self._consume(context)
+
+        if not curr:
+            return float("-inf"), curr
+
+        bkwd = self.wfsa.epsremove.backward
+        log_ctx_w = logsumexp([(curr[i] * bkwd[i]).score for i in curr])
+
+        if np.isnan(log_ctx_w):
+            return float("-inf"), curr
+
+        return log_ctx_w, curr
 
     async def prefix(self, context):
         """
@@ -117,10 +162,7 @@ class WFSA(Potential):
         Returns:
             (float): Log weight of `context` as a prefix under the WFSA.
         """
-        curr = self._consume(context)
-        bkwd = self.wfsa.epsremove.backward
-        w = sum(curr[i] * bkwd[i] for i in curr)
-        return np.log(w) if w > 0 else float("-inf")
+        return self._prefix(context)[0]
 
     async def logw_next(self, context):
         """Returns next token log weights given `context`.
@@ -131,31 +173,23 @@ class WFSA(Potential):
         Returns:
             (LazyWeights): Log-weights for next token and EOS.
         """
-        curr = self._consume(context)
-        bkwd = self.wfsa.epsremove.backward
+        log_ctx_w, curr = self._prefix(context)
 
-        ctx_w = sum(curr[i] * bkwd[i] for i in curr)
-
-        if ctx_w == 0:
+        if log_ctx_w == float("-inf"):
             raise ValueError(f"Context {context!r} has zero weight.")
 
-        log_ctx_w = np.log(ctx_w)
+        bkwd = self.wfsa.epsremove.backward
 
         ws = self.wfsa.R.chart()
         for i in curr:
             for b, j, w in self.wfsa.epsremove.arcs(i=i):
                 ws[b] += curr[i] * w * bkwd[j]
 
-        ws[EOS] = self.wfsa.R.zero
+        ws[self.eos] = self.wfsa.R.zero
         for j, w in self.wfsa.epsremove.F:
-            ws[EOS] += curr[j] * w
+            ws[self.eos] += curr[j] * w
 
-        log_ws = np.array(
-            [
-                np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float("-inf")
-                for b in self.vocab_eos
-            ]
-        )
+        log_ws = np.array([ws[b].score for b in self.vocab_eos]) - log_ctx_w
 
         return self.make_lazy_weights(log_ws)
 
