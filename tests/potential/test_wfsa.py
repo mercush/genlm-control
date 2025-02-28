@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from genlm_grammar import WFSA as BaseWFSA, Float
 from genlm_control.potential.built_in import WFSA, BoolFSA
-from hypothesis import strategies as st, given
+from hypothesis import strategies as st, given, settings
 
 
 @pytest.fixture
@@ -179,8 +179,9 @@ def regex_pattern(draw, max_depth=3):
 
 
 @pytest.mark.asyncio
+@settings(deadline=None)
 @given(regex_pattern(max_depth=3), st.data())
-async def _test_bool_fsa_with_generated_regex(pattern, data):
+async def test_bool_fsa_with_generated_regex(pattern, data):
     """Test that BoolFSA accepts strings that match its regex pattern"""
     pot = BoolFSA.from_regex(pattern)
 
