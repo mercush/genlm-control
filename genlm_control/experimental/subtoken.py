@@ -41,7 +41,7 @@ class SubTokenMarginal:
 class SubtokenPotential(Potential):
     def __init__(self, potential, trie=None):
         self.potential = potential
-        self.trie = trie or load_async_trie(potential.decode_eos)
+        self.trie = trie or load_async_trie(potential.vocab_eos)
 
         trie = self.trie.trie
         self.prefix2node = {}
@@ -59,7 +59,7 @@ class SubtokenPotential(Potential):
         self.cache = {}
 
         units = set()
-        for token in self.potential.decode:
+        for token in self.potential.vocab:
             for subtoken in token:
                 units.add(subtoken)
 
@@ -99,7 +99,7 @@ class SubtokenPotential(Potential):
         subtoken = await self._get_subtoken_weights(subtoken_ctx_hash)
 
         prefix_logw = subtoken.prefix(subtoken_ctx_hash)
-        for i, x in enumerate(self.decode):
+        for i, x in enumerate(self.vocab):
             logws[i] = subtoken.prefix(subtoken_ctx_hash + (x,)) - prefix_logw
         logws[-1] = subtoken.complete(subtoken_ctx_hash) - prefix_logw
 

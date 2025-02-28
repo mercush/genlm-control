@@ -41,7 +41,7 @@ class PotentialTests:
         $$
         \\textsf{logw_next}(x_n | x_1, \\ldots, x_{n-1}) = \\textsf{score}(x_1, \\ldots, x_n) - \\textsf{prefix}(x_1, \\ldots, x_{n-1})
         $$
-        for $x_n \\in \\textsf{decode_eos}$, i.e., the potential's vocabulary and end-of-sequence token.
+        for $x_n \\in \\textsf{vocab_eos}$, i.e., the potential's vocabulary and end-of-sequence token.
 
         Args:
             context (list): Context to test.

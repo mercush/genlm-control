@@ -41,7 +41,7 @@ class PotentialOps:
         """
         from genlm_control.potential.coerce import Coerced
 
-        return Coerced(self, other.decode, f=f, prune=prune)
+        return Coerced(self, other.vocab, f=f, prune=prune)
 
     def to_autobatched(self):
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.

@@ -10,7 +10,7 @@ class TokenSampler(SubModel):
     `TokenSampler`s generate properly weighted samples with respect to a `target` potential.
 
     Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the target potential's vocabulary,
-    a `TokenSampler` samples a token $x_n$ and weight $w$ from the potential's vocabulary.
+    a `TokenSampler` samples a token $x_n \\in \\textsf{target.vocab_eos}$ and weight $w$.
 
     The sampled token and weight are properly weighted with respect to
     $$
@@ -49,7 +49,7 @@ class TokenSampler(SubModel):
         while tracer.root.mass > 0:
             with tracer:
                 token, logw, logp = await self.sample(context, draw=tracer)
-                token_id = self.target.encode_eos[token]
+                token_id = self.target.lookup[token]
                 logP[token_id] = logsumexp([logP[token_id], logw + logp])
 
         return self.target.make_lazy_weights(logP)
@@ -80,7 +80,7 @@ class DirectTokenSampler(TokenSampler):
         """Sample a token and weight that are properly weighted with respect to the target potential's `logw_next` method.
 
         Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the target potential's vocabulary,
-        this method samples a token $x_n$ and weight $w$ from the potential's vocabulary.
+        this method samples a token $x_n \\in \\textsf{target.vocab_eos}$ and weight $w$.
 
         The sampled token and weight are properly weighted with respect to
         $$
@@ -125,7 +125,7 @@ class SetTokenSampler(TokenSampler):
         and then selecting one proportional to its weight.
 
         Given a context of tokens $x_1, \\ldots, x_{n-1}$ in the vocabulary of the set sampler's target potential,
-        this method samples a token $x_n$ from the potential's vocabulary and a weight.
+        this method samples a token $x_n \\in \\textsf{set_sampler.target.vocab_eos}$ and a weight.
 
         The sampled token and weight are properly weighted with respect to
         $$

@@ -31,7 +31,7 @@ class AutoBatchedPotential(Potential):
         self.potential = potential
         self.background_loop = AsyncBatchLoop(potential)
         self.background_loop.start()
-        super().__init__(potential.decode)
+        super().__init__(potential.vocab)
 
     async def complete(self, context):
         return await self.background_loop.queue_request(

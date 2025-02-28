@@ -109,7 +109,7 @@ class WCFG(Potential):
         ws = self.model.next_token_weights(self.model.chart(context))
         ws = ws.trim().normalize()
         log_ws = np.array(
-            [np.log(ws[x]) if ws[x] > 0 else float("-inf") for x in self.decode_eos]
+            [np.log(ws[x]) if ws[x] > 0 else float("-inf") for x in self.vocab_eos]
         )
         return self.make_lazy_weights(log_ws)
 
@@ -187,7 +187,7 @@ class BoolCFG(WCFG):
             (LazyWeights): The log weights for the next tokens and EOS given `context`.
         """
         ws = self.model.next_token_weights(self.model.chart(context))
-        log_ws = np.array([0 if ws[x] > 0 else float("-inf") for x in self.decode_eos])
+        log_ws = np.array([0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos])
         return self.make_lazy_weights(log_ws)
 
     async def batch_logw_next(self, contexts):
@@ -204,7 +204,7 @@ class BoolCFG(WCFG):
         for context in contexts:
             ws = self.model.next_token_weights(self.model.chart(context))
             log_ws = np.array(
-                [0 if ws[x] > 0 else float("-inf") for x in self.decode_eos]
+                [0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos]
             )
             Ws.append(self.make_lazy_weights(log_ws))
         return Ws

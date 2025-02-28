@@ -46,7 +46,7 @@ async def test_score(potential):
 async def test_logw_next(potential):
     context = [b"b", b"c"]
     have = (await potential.logw_next(context)).materialize()
-    for token in potential.decode_eos:
+    for token in potential.vocab_eos:
         want = await potential.score(context + [token]) - await potential.prefix(
             context
         )

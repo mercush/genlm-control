@@ -19,21 +19,21 @@ async def test_init(params):
     await p_st.cleanup()
 
     assert all(
-        all(subtoken in p_st.decode_eos for subtoken in token) for token in p.decode_eos
+        all(subtoken in p_st.vocab_eos for subtoken in token) for token in p.vocab_eos
     )
 
     # Check that all tokens are in complete2node.
-    assert all(tuple(v) in p_st.complete2node for v in p.decode_eos)
+    assert all(tuple(v) in p_st.complete2node for v in p.vocab_eos)
     # Check that all prefixes are in prefix2node.
     assert (
         all(
             all(tuple(v[:i]) in p_st.prefix2node for i in range(0, len(v) + 1))
-            for v in p.decode
+            for v in p.vocab
         )
         and tuple(p.eos) in p_st.prefix2node
     )
 
-    assert p_st.decode_eos[-1] is EOT
+    assert p_st.vocab_eos[-1] is EOT
     assert p_st.prefix2node[()] is p_st.trie.trie.root
 
 

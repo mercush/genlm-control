@@ -21,7 +21,7 @@ class SimplePotential(Potential):
         return 0
 
     def spawn(self):
-        return SimplePotential(self.decode)
+        return SimplePotential(self.vocab)
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ async def test_product_operator(p1, p2):
     want = Product(p1, p2)
     assert have.p1 == want.p1
     assert have.p2 == want.p2
-    assert have.decode == want.decode
+    assert have.vocab == want.vocab
 
 
 @pytest.mark.asyncio
@@ -57,7 +57,7 @@ async def test_coerce_operator(p1):
         return [x for xs in seq for x in xs]
 
     coerced = p1.coerce(SimplePotential(target_vocab), f=f)
-    assert set(coerced.decode) == set(target_vocab)
+    assert set(coerced.vocab) == set(target_vocab)
 
     # Test with custom transformations
     def f(seq):
@@ -66,7 +66,7 @@ async def test_coerce_operator(p1):
     have = p1.coerce(SimplePotential(target_vocab), f=f)
     want = Coerced(p1, target_vocab, f=f)
     assert have.potential == want.potential
-    assert have.decode == want.decode
+    assert have.vocab == want.vocab
 
 
 @pytest.mark.asyncio
@@ -84,7 +84,7 @@ async def test_to_multiprocess(p1):
     num_workers = 2
     have = p1.to_multiprocess(num_workers=num_workers)
     want = MultiProcPotential(p1.spawn, (), num_workers=num_workers)
-    assert have.decode == want.decode
+    assert have.vocab == want.vocab
 
 
 @pytest.mark.asyncio
@@ -93,7 +93,7 @@ async def test_operator_chaining(p1, p2):
     want = AutoBatchedPotential(Product(p1, p2))
     assert have.potential.p1 == want.potential.p1
     assert have.potential.p2 == want.potential.p2
-    assert have.decode == want.decode
+    assert have.vocab == want.vocab
 
     await have.cleanup()
     await want.cleanup()
@@ -107,4 +107,4 @@ async def test_operator_chaining(p1, p2):
     want = Coerced(Product(p1, p2), V, f=f)
     assert have.potential.p1 == want.potential.p1
     assert have.potential.p2 == want.potential.p2
-    assert have.decode == want.decode
+    assert have.vocab == want.vocab
