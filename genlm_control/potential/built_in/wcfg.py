@@ -108,9 +108,12 @@ class WCFG(Potential):
         """
         ws = self.model.next_token_weights(self.model.chart(context))
         ws = ws.trim().normalize()
-        log_ws = np.array(
-            [np.log(ws[x]) if ws[x] > 0 else float("-inf") for x in self.vocab_eos]
-        )
+
+        ws_array = np.array([ws[x] for x in self.vocab_eos])
+        mask = ws_array > 0
+        log_ws = np.full_like(ws_array, float("-inf"), dtype=np.float64)
+        log_ws[mask] = np.log(ws_array[mask])
+
         return self.make_lazy_weights(log_ws)
 
     def clear_cache(self):

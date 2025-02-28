@@ -4,7 +4,7 @@ import numpy as np
 from genlm_grammar import Float
 from genlm_grammar.lark_interface import interegular_to_wfsa
 
-from genlm_control.potential.base import Potential, EOS
+from genlm_control.potential.base import Potential
 
 
 class WFSA(Potential):
@@ -146,16 +146,14 @@ class WFSA(Potential):
             for b, j, w in self.wfsa.epsremove.arcs(i=i):
                 ws[b] += curr[i] * w * bkwd[j]
 
-        ws[EOS] = self.wfsa.R.zero
+        ws[self.eos] = self.wfsa.R.zero
         for j, w in self.wfsa.epsremove.F:
-            ws[EOS] += curr[j] * w
+            ws[self.eos] += curr[j] * w
 
-        log_ws = np.array(
-            [
-                np.log(ws[b]) - log_ctx_w if ws[b] > 0 else float("-inf")
-                for b in self.vocab_eos
-            ]
-        )
+        ws_array = np.array([ws[b] for b in self.vocab_eos])
+        mask = ws_array > 0
+        log_ws = np.full_like(ws_array, float("-inf"), dtype=np.float64)
+        log_ws[mask] = np.log(ws_array[mask]) - log_ctx_w
 
         return self.make_lazy_weights(log_ws)
 
