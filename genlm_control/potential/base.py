@@ -49,7 +49,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
             TypeError: If vocabulary contains tokens which are not of `token_type`.
         """
         if not vocabulary:
-            raise ValueError("vocabocabulary cannot be empty")
+            raise ValueError("vocabulary cannot be empty")
 
         if token_type is None:
             token_type = infer_vocabulary_type(vocabulary)
