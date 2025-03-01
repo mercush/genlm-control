@@ -5,7 +5,6 @@ from arsenal.datastructures import LocatorMaxHeap
 from abc import ABC, abstractmethod
 
 from genlm_control.util import load_async_trie
-from genlm_control.constant import EOS
 
 
 class SetSampler(ABC):
@@ -154,6 +153,7 @@ class EagerSetSampler(TrieSetSampler):
 
         logws = self.target.alloc_logws()
         curr = self.trie.root
+        coerced_ctx = self.f(context)
         subtokens = []
         logp, logw = 0, 0
 
@@ -170,9 +170,7 @@ class EagerSetSampler(TrieSetSampler):
                 token_id = self.leaf_to_token_id[leaf]
                 logws[token_id] = iter_logws[token] + logw - logp
 
-            item_logws2 = await self.item_potential.logw_next(
-                self.f(context) + subtokens
-            )
+            item_logws2 = await self.item_potential.logw_next(coerced_ctx + subtokens)
             item_ws2 = item_logws2.exp().materialize()
             w_next = (item_ws1 * item_ws2).trim()
 
@@ -184,9 +182,9 @@ class EagerSetSampler(TrieSetSampler):
             logp += np.log(ps[b])
             logw += item_logws2[b]
 
-            if b is EOS:
+            if b == self.target.eos:
                 assert not subtokens, "subtokens should be empty at EOS."
-                logws[-1] = iter_logws[EOS] + logw - logp
+                logws[-1] = iter_logws[self.target.eos] + logw - logp
                 break
 
             subtokens.append(b)
@@ -266,7 +264,7 @@ class TopKSetSampler(TrieSetSampler):
                 wc = self.target.vocab_eos[wc_id]
                 item_ctx = self.f(context)
                 prefix_w = await self.item_potential.prefix(item_ctx)
-                if wc is EOS:
+                if wc == self.target.eos:
                     w_guide_wc = await self.item_potential.complete(item_ctx) - prefix_w
                 else:
                     w_guide_wc = (
@@ -288,6 +286,7 @@ class TopKSetSampler(TrieSetSampler):
         W[node] = 0
 
         children = self.trie.children
+        coerced_ctx = self.f(context)
 
         curr_priority = float("inf")
         prev_best = float("inf")
@@ -308,14 +307,17 @@ class TopKSetSampler(TrieSetSampler):
                 yield (self.leaf_to_token_id[node], value)
                 continue
 
-            logws = await self.item_potential.logw_next(self.f(context) + list(token))
-
+            logws = None
             for x, y in children[node].items():
                 if x is None:
                     W_y = W[node]
                     W[y] = W_y
                     agenda[token, y, True] = W_y + max_logws[y]
                 else:
+                    if logws is None:
+                        logws = await self.item_potential.logw_next(
+                            coerced_ctx + list(token)
+                        )
                     W_y = W[node] + logws[x]
                     if W_y == float("-inf"):
                         continue
