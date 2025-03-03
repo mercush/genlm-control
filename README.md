@@ -1,4 +1,5 @@
-[![Docs](https://github.com/chi-collective/genlm-control/actions/workflows/docs.yml/badge.svg)](https://chi-collective.github.io/genlm-control/)
+[![Docs](https://github.com/chisym/genlm-control/actions/workflows/docs.yml/badge.svg)](https://chisym.github.io/genlm-control/)
+[![Tests](https://github.com/chisym/genlm-control/actions/workflows/pytest.yml/badge.svg)](https://chisym.github.io/genlm-control/)
 
 # GenLM Control
 
