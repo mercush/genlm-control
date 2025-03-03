@@ -1,34 +1,13 @@
 # Potentials
 
-`Potential`s are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning weights to sequences of tokens.
+[Potentials](../reference/genlm_control/potential/__init__/) are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning weights to sequences of tokens.
 
 Potentials serve two main roles in controlled text generation:
 
 1. **Building blocks of [samplers](samplers.md)** - Potentials are key components of samplers, which are used to propose new tokens during generation.
-2. **Critics** - Potentials are used to guide generation by acting as *twists* which reweight partial and complete sequences during generation.
+2. **Critics** - Potentials are used to guide generation by reweighting partial and complete sequences.
 
 This page describes the core concepts and methods of potentials.
-
-## Table of Contents
-
-- [Key concepts](#key-concepts)
-  - [Vocabulary](#vocabulary)
-  - [Weight assignment](#weight-assignment)
-  - [Next-token weights](#next-token-weights)
-- [Built-in potentials](#built-in-potentials)
-  - [Language models](#language-models)
-  - [Finite-state automata](#finite-state-automata)
-  - [Context-free grammars](#context-free-grammars)
-- [Custom potentials](#custom-potentials)
-  - [Defining a custom potential](#defining-a-custom-potential)
-  - [Testing your custom potential](#testing-your-custom-potential)
-- [Complex usage](#complex-usage)
-  - [Products of potentials](#products-of-potentials)
-  - [Coerced potentials](#coerced-potentials)
-  - [Performance optimizations](#performance-optimizations)
-- [Formalization](#formalization)
-  - [Correspondance with the Potential class](#correspondance-with-the-potential-class)
-
 
 ## Key concepts
 
@@ -40,25 +19,37 @@ Each potential has a **vocabulary** which defines the set of tokens it operates 
 
 Potentials assign weights to sequences of tokens from their vocabulary. These weights are always non-negative real numbers, though they are computed in log space for numerical stability.
 
-A potential $\Phi$ defines two core weighting functions:
+A potential defines two core weighting functions:
 
-1. **Complete** (`complete` method) - Assigns weights to sequences that are considered "finished" or "complete". For example, a potential enforcing grammatical correctness would assign positive weights to grammatically valid sentences and zero weights (negative infinity in log space) to invalid ones.
+1. `complete` - Assigns weights to sequences that are considered "finished" or "complete". For example, a potential enforcing grammatical correctness would assign positive weights to grammatically valid sentences and zero weights (negative infinity in log space) to invalid ones.
 
-2. **Prefix** (`prefix` method) - Assigns weights to partial sequences that could potentially be extended into valid complete sequences. For example, a potential enforcing grammatical correctness could assign positive weights to prefixes of grammatically valid sequences.
+2. `prefix` - Assigns weights to partial sequences that could potentially be extended into valid complete sequences. For example, a potential enforcing grammatical correctness could assign positive weights to prefixes of grammatically valid sequences.
 
     Given a complete method, there are many possible prefix methods that could be used, providing as much or as little information as desired. The key requirement is that if a prefix has zero weight, then all of its extensions and completions must also have zero weight - in other words, prefix cannot rule out sequences that could later become valid.
 
 For example, consider a potential that only allows sequences of length $N$:
-- The complete weight would be positive for sequences of *exactly* length $N$
-- The prefix weight would be positive for sequences of length *at most* $N$
+
+* The `complete` weight would be positive for sequences of *exactly* length $N$
+* The `prefix` weight would be positive for sequences of length *at most* $N$
 
 The relationship between complete and prefix weights is formalized in the [Formalization](#formalization) section.
 
 ### Next-token weights
 
-The `logw_next` method computes weights for each possible next token (including a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step of generation.
+The `logw_next` method computes weights for each possible next token in the potential's vocabulary (and a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step of generation.
 
-The `logw_next` method is implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. The relationship between `logw_next` and `complete`/`prefix` is given in the [Formalization](#formalization) section.
+The `logw_next` method is implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. However, `logw_next` must satisfy a contract with `complete`/`prefix`, given in the [Formalization](#formalization) section.
+
+### Batch methods
+
+For improved performance with large batches of inputs, potentials support batch operations:
+
+* `batch_complete(contexts)`
+* `batch_prefix(contexts)`
+* `batch_logw_next(contexts)`
+* `batch_score(contexts)`
+
+By default, these methods simply call the corresponding non-batch method for all inputs, but potentials can override them to provide more efficient implementations. They can be used in conjunction with [auto batching](performance.md#auto-batching) for improved performance during generation.
 
 ## Built-in potentials
 
@@ -66,7 +57,7 @@ The `logw_next` method is implemented by default in terms of the `complete` and 
 
 ### Language models
 
-`PromptedLLM` represents a language model conditioned on a fixed prompt prefix.
+[`PromptedLLM`](../reference/genlm_control/potential/built_in/llm/__init__) represents a language model conditioned on a fixed prompt prefix.
 
 ```python
 # Load GPT-2 with temperature 0.5
@@ -80,7 +71,7 @@ llm.set_prompt_from_str("Montreal is")
 
 ### Finite-state automata
 
-`genlm-control` provides two FSA implementations:
+`genlm-control` provides two [FSA implementations](../reference/genlm_control/potential/built_in/wfsa/__init__):
 
 1. `WFSA` (Weighted Finite-State Automata) - For weighted constraints:
 ```python
@@ -97,13 +88,14 @@ fsa = BoolFSA.from_regex(r"\sthe\s(best|worst).*😎")
 ```
 
 Both FSAs:
-- Support regex patterns with standard syntax
-- Operate on byte-level sequences by default
-- Can be combined with other potentials via products
+
+* Support regex patterns with standard syntax
+* Operate on byte-level sequences by default
+* Can be combined with other potentials via products
 
 ### Context-free grammars
 
-Similar to FSAs, `genlm-control` provides two CFG implementations:
+Similar to FSAs, `genlm-control` provides two [CFG implementations](../reference/genlm_control/potential/built_in/wcfg/__init__):
 
 1. `WCFG` (Weighted Context-Free Grammar).
 ```python
@@ -134,23 +126,24 @@ cfg = BoolCFG.from_lark("""
 `BoolCFG`s support grammar specification via [Lark syntax](https://lark-parser.readthedocs.io/en/latest/grammar.html).
 
 Both CFGs:
-- Use Earley parsing for efficient recognition
-- Can be combined with other potentials
-- Operate on byte-level sequences by default
+
+* Use Earley parsing for efficient recognition
+* Can be combined with other potentials
+* Operate on byte-level sequences by default
 
 ## Custom potentials
 
-Creating custom potentials is straightforward and allows you to use arbitrary constraints.
+You can create custom potentials to implement specialized constraints or preferences that aren't covered by the built-in options.
 
 ### Creating a custom potential
 
-To define a custom potential, you need to
+To define a custom potential:
+
 1. Create a subclass of `Potential`
-2. Implement the `complete` and `prefix` methods.
+2. Implement the `complete` and `prefix` methods
+3. Optionally override `logw_next` and the batch methods for performance optimization
 
-For improved performance, you can also override the `logw_next` method with an implementation that satisfies the properties specified in the [Formalization](#formalization) section.
-
-Consider the following example of a potential that only allows sequences of a given length:
+The key is understanding the relationship between `complete` and `prefix`. Consider the following example of a potential that only allows sequences of a given length:
 
 ```python
 class LengthPotential(Potential):
@@ -167,19 +160,32 @@ class LengthPotential(Potential):
     async def prefix(self, context):
         # Note: 0.0 = log(1.0) and float('-inf') = log(0.0)
         return 0.0 if len(context) <= self.length else float('-inf')
+
+length_potential = LengthPotential(vocabulary=[b'the', b'a', b'cat', b'dog', b'saw', b'chased'], length=5)
 ```
 
-Here, the `complete` method only allows sequences of the given length. The `prefix` method, in contrast, allows sequences of any length up to the given length. This is a simple example, but it illustrates the key difference between complete and prefix weights: since a sequence with length less than the target length can always be extended to a sequence of the target length, the `prefix` method cannot rule it out. It is only when we've surpassed the target length that the `prefix` method can rule out the sequence (assigning a zero weight).
+This example illustrates the key difference between `complete` and `prefix`: the `complete` method only allows sequences of exactly the target length, while the `prefix` method allows any sequence that could potentially reach the target length (i.e., any sequence not exceeding the target length).
+
+### Common pitfalls
+
+When implementing custom potentials, be aware of these common issues:
+
+1. **Inconsistent complete/prefix relationship** - If your `prefix` method assigns zero weight to a sequence, all extensions must also have zero weight.
+
+2. **Inefficient implementations** - For complex potentials, consider overriding `logw_next` with a more efficient implementation than the default.
+
+3. **Not handling async properly** - All potential methods are asynchronous. Make sure to use `await` when calling them and define your methods with `async def`.
 
 ### Testing your custom potential
 
-Potentials automatically inherit from the `PotentialTests` mixin, which provides a number of tests for validating the correctness of the potential's implementation:
+Potentials automatically inherit from the [`PotentialTests`](../reference/genlm_control/potential/testing) mixin, which provides a number of tests for validating the correctness of the potential's implementation:
 
 * `assert_logw_next_consistency(context)`: Verifies that token-level log weights are consistent with prefix and complete scores for a given context.
 * `assert_autoreg_fact(context)`: Validates that complete scores factor correctly as a sum of log token weights (with an additional correction term corresponding to the prefix weight of the empty sequence) for a given context.
-* `assert_batch_consistency(contexts)`: Ensures batch operations produce identical results to their non-batch counterparts for a given batch of contexts.
+* `assert_batch_consistency(contexts)`: Ensures batch operations (`batch_score`, `batch_complete`, `batch_prefix`, `batch_logw_next`) produce identical results to their non-batch counterparts for a given batch of contexts.
 
 ```python
+# These will raise an exception if the potential implementation does not satisfy the properties
 await potential.assert_logw_next_consistency(context)
 await potential.assert_autoreg_fact(context)
 await potential.assert_batch_consistency(contexts)
@@ -189,7 +195,7 @@ await potential.assert_batch_consistency(contexts)
 
 ### Products of potentials
 
-The `Product` class allows you to combine two potentials. A `Product` is itself is a potential, meaning that it implements all potential methods and that it is possible to chain products to combine more than two potentials.
+The [`Product`](../reference/genlm_control/potential/product) class allows you to combine two potentials. A `Product` is itself is a potential, meaning that it implements all potential methods and that it is possible to chain products to combine more than two potentials.
 
 
 ```python
@@ -206,17 +212,17 @@ product = mtl_llm * bos_llm
 
 The product potential operates on the intersection of the two potentials' vocabularies. For a product potential:
 
-- The vocabulary $\mathcal{A}$ is the intersection of the two potentials' vocabularies: $ \mathcal{A} = \mathcal{A}_1 \cap \mathcal{A}_2 $.
-- The prefix potential $\psi$ is the product (sum in log space) of the individual prefix potentials: $ \log \psi(\bm{x}) = \log \psi_1(\bm{x}) + \log \psi_2(\bm{x}) $
-- The complete potential $\phi$ is the product (sum in log space) of the individual complete potentials: $ \log \phi(\bm{x}) = \log \phi_1(\bm{x}) + \log \phi_2(\bm{x}) $
-- The next-token potential $\Phi(\cdot \mid \bm{x})$ is the product (sum in log space) of the individual next-token potentials: $ \log \Phi(x \mid \bm{x}) = \log \Phi_1(x \mid \bm{x}) + \log \Phi_2(x \mid \bm{x}) $ for $x \in (\mathcal{A}_1 \cap \mathcal{A}_2) \cup \{\textsf{eos}\}$
+- The vocabulary $\A$ is the intersection of the two potentials' vocabularies: $\A = \A_1 \cap \A_2$.
+- The prefix potential $\prefix$ is the product (sum in log space) of the individual prefix potentials: $\log \prefix(\xx) = \log \prefix_1(\xx) + \log \prefix_2(\xx)$.
+- The complete potential $\pot$ is the product (sum in log space) of the individual complete potentials: $\log \pot(\xx) = \log \pot_1(\xx) + \log \pot_2(\xx)$.
+- The next-token potential $\pot(\cdot \mid \xx)$ is the product (sum in log space) of the individual next-token potentials: $\log \pot(x \mid \xx) = \log \pot_1(x \mid \xx) + \log \pot_2(x \mid \xx)$ for $x \in (\A_1 \cap \A_2) \cup \{\eos\}$
 
-> **Note:** Be careful when taking products of potentials with minimal vocabulary overlap, as the resulting potential will only operate on tokens present in both vocabularies. A warning will be raised if the vocabulary overlap is less than 10% of either potential's vocabulary.
+> **Warning:** Be careful when taking products of potentials with minimal vocabulary overlap, as the resulting potential will only operate on tokens present in both vocabularies. A warning will be raised if the vocabulary overlap is less than 10% of either potential's vocabulary.
 
 
 ### Coerced potentials
 
-The `Coerced` class allows you to adapt a potential to work with a different vocabulary by providing a coercion function that maps between token types. This is particularly useful when combining potentials that operate on different types of tokens.
+The [`Coerced`](../reference/genlm_control/potential/coerce) class allows you to adapt a potential to work with a different vocabulary by providing a coercion function. The coercion function must map between sequences in the new vocabulary and sequences in the potential's original vocabulary. This is particularly useful when combining potentials that operate on different types of tokens.
 
 ```python
 # Example: Coercing a byte-level FSA to work with a language model's tokens
@@ -230,26 +236,13 @@ coerced_fsa = fsa.coerce(llm, f=b''.join)
 product = llm * coerced_fsa
 ```
 
-For a coerced potential with coercion function $f$, the prefix $\psi$ and complete $\phi$ potentials are defined as:
-
-$$
-\psi(x_1, \ldots, x_n) = \psi(f(x_1, \ldots, x_n))
-$$
-
-$$
-\phi(x_1, \ldots, x_n) = \phi(f(x_1, \ldots, x_n))
-$$
-
-where $x_1, \ldots, x_n$ is a sequence of tokens in the coerced potential's vocabulary.
-
-By default, the coerced potential's vocabulary is pruned to only include tokens that can be validly mapped to the original potential's vocabulary via the coercion function. This can be disabled by setting `prune=False`.
-
 Common use cases for coercion include:
+
 - Adapting byte-level constraints (like FSAs) to work with token-level language models (which have vocabularies of byte *sequences*)
 - Implementing constraints that operate on processed versions of the tokens (e.g., lowercase text)
 - Converting between different tokenization schemes
 
-> **Note:** The coercion operation can impact performance, especially when mapping from a coarser token type to a finer token type (e.g., byte sequences to individual bytes). To sample tokens from a coerced product, consider using specialized samplers (e.g., `eager_token_sampler`, `topk_token_sampler`).
+> **Performance Note:** The coercion operation can impact performance, especially when mapping from a coarser token type to a finer token type (e.g., byte sequences to individual bytes). To sample tokens from a coerced product, consider using specialized samplers (e.g., `eager_token_sampler`, `topk_token_sampler`).
 
 ### Performance optimizations
 
@@ -260,43 +253,43 @@ Common use cases for coercion include:
 
 This section provides a formal definition of potentials and the relationships between their complete, prefix, and next-token potentials.
 
-**Notation** Let $\mathcal{A}$ be a vocabulary of tokens and $\textsf{eos}$ a specialized end-of-sequence token. Let $\mathcal{A}^*$ denote the set of all sequences of tokens which can be built from $\mathcal{A}$ (including the empty sequence $\epsilon$) and $\mathcal{A}^*{\textsf{eos}} = \{\bm{x}\textsf{eos} : \bm{x} \in \mathcal{A}^*\}$ the set of $\textsf{eos}$-terminated sequences. We refer to $\mathcal{A}^*$ as the set of *prefix* sequences and $\mathcal{A}^*{\textsf{eos}}$ the set of *complete* sequences.
+**Notation** Let $\A$ be a vocabulary of tokens and $\eos$ a specialized end-of-sequence token. Let $\A^*$ denote the set of all sequences of tokens which can be built from $\A$ (including the empty sequence $\epsilon$) and $\A^*{\eos} = \{\xx\eos : \xx \in \A^*\}$ the set of $\eos$-terminated sequences. We refer to $\A^*$ as the set of *prefix* sequences and $\A^*{\eos}$ the set of *complete* sequences.
 
-A potential $\Phi$ is a function $\Phi: \mathcal{A}^* \cup\mathcal{A}^*{\textsf{eos}} \rightarrow \mathbb{R}_{\geq 0}$ which assigns a non-negative real number to prefix and complete sequences from its vocabulary $\mathcal{A}$:
+A potential $\pot$ is a function $\pot: \A^* \cup\A^*{\eos} \rightarrow \mathbb{R}_{\geq 0}$ which assigns a non-negative real number to prefix and complete sequences from its vocabulary $\A$:
 
 $$
-\Phi(\bm{x}) = \begin{cases}
-    \psi(\bm{x}) & \text{if } \bm{x} \in \mathcal{A}^* \\
-    \phi(\bm{y}) & \text{if } \bm{x} = \bm{y}\textsf{eos}, \bm{y} \in \mathcal{A}^*
+\pot(\xx) = \begin{cases}
+    \prefix(\xx) & \text{if } \xx \in \A^* \\
+    \complete(\yy) & \text{if } \xx = \yy\eos, \yy \in \A^*
 \end{cases}
 $$
 
 where
 
-* $\psi : \mathcal{A}^* \rightarrow \mathbb{R}_{\geq 0}$ is the **prefix potential**
-* $\phi : \mathcal{A}^* \rightarrow \mathbb{R}_{\geq 0}$ is the **complete potential**
+* $\prefix : \A^* \rightarrow \mathbb{R}_{\geq 0}$ is the **prefix potential**
+* $\complete : \A^* \rightarrow \mathbb{R}_{\geq 0}$ is the **complete potential**
 
 The complete and prefix potentials are related by the following equation:
 
 $$
-\psi(\bm{x}) > 0 \implies \phi(\bm{x}\bm{y}) > 0 \, \forall \bm{x},\bm{y} \text{ such that } \bm{x}\bm{y} \in \mathcal{A}^*
+\prefix(\xx) > 0 \implies \pot(\xx\yy) > 0 \, \forall \xx,\yy \text{ such that } \xx\yy \in \A^*
 $$
 
 Intuitively, this means that the prefix potential cannot rule out a sequence which can later on turn out to be valid according to the complete potential.
 
-Finally, we define the **next-token weights function** $\Phi(x \mid \bm{x}) : \mathcal{A} \cup \{\textsf{eos}\} \rightarrow \mathbb{R}_{\geq 0}$, which assigns a non-negative real number to each token $x \in \mathcal{A} \cup \{\textsf{eos}\}$ given a sequence $\bm{x} \in \mathcal{A}^*$:
+Finally, we define the **next-token weights function** $\pot(x \mid \xx) : \A \cup \{\eos\} \rightarrow \mathbb{R}_{\geq 0}$, which assigns a non-negative real number to each token $x \in \A \cup \{\eos\}$ given a sequence $\xx \in \A^*$:
 
 $$
-\Phi(x \mid \bm{x}) = \frac{\Phi(\bm{x}x)}{\psi(\bm{x})} = \begin{cases}
-    \frac{\psi(\bm{x}x)}{\psi(\bm{x})} & \text{if } x \in \mathcal{A} \\
-    \frac{\phi(\bm{x})}{\psi(\bm{x})} & \text{if } x = \textsf{eos}
+\pot(x \mid \xx) = \frac{\pot(\xx x)}{\prefix(\xx)} = \begin{cases}
+    \frac{\prefix(\xx x)}{\prefix(\xx)} & \text{if } x \in \A \\
+    \frac{\complete(\xx)}{\prefix(\xx)} & \text{if } x = \eos
 \end{cases}
 $$
 
-$\Phi(\cdot \mid \bm{x})$ is related to the complete and prefix potentials according to the following autoregressive factorization:
+$\pot(\cdot \mid \xx)$ is related to the complete and prefix potentials according to the following autoregressive factorization:
 
 $$
-\frac{\phi(\bm{x})}{\psi(\epsilon)} = \Phi(\textsf{eos} \mid \bm{x}) \prod_{x \in \bm{x}} \Phi(x \mid \bm{x})
+\frac{\complete(\xx)}{\prefix(\epsilon)} = \pot(\eos \mid \xx) \prod_{x \in \xx} \pot(x \mid \xx)
 $$
 
 ### Correspondance with the `Potential` class
@@ -305,10 +298,10 @@ Each of the quantities above directly corresponds to a method or attribute of th
 
 | Method/Attribute | Mathematical Quantity | Description |
 |-----------------|----------------------|-------------|
-| `vocab` | $\mathcal{A}$ | The vocabulary of the potential. |
-| `eos` | $\textsf{eos}$ | The end-of-sequence token. |
-| `vocab_eos` | $\mathcal{A} \cup \{\textsf{eos}\}$ | The vocabulary of the potential including the end-of-sequence token. |
-| `complete(self, context)` | $\log \phi(\bm{x})$ | The complete potential for a given sequence. |
-| `prefix(self, context)` | $\log \psi(\bm{x})$ | The prefix potential for a given sequence. |
-| `logw_next(self, context)` | $\log \Phi(\cdot \mid \bm{x})$ | The next-token potential for a given prefix sequence. |
-| `score(self, context)` | $\log \Phi(\bm{x})$ | The potential defined for a possibly eos-terminated sequence. |
+| `vocab` | $\A$ | The vocabulary of the potential. |
+| `eos` | $\eos$ | The end-of-sequence token. |
+| `vocab_eos` | $\A \cup \{\eos\}$ | The vocabulary of the potential including the end-of-sequence token. |
+| `complete(self, context)` | $\log \complete(\xx)$ | The complete potential for a given sequence. |
+| `prefix(self, context)` | $\log \prefix(\xx)$ | The prefix potential for a given sequence. |
+| `logw_next(self, context)` | $\log \pot(\cdot \mid \xx)$ | The next-token potential for a given prefix sequence. |
+| `score(self, context)` | $\log \pot(\xx)$ | The potential defined for a possibly eos-terminated sequence. |

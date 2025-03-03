@@ -6,13 +6,13 @@ The `genlm-control` library offers two key performance optimizations for instanc
 - **Multiprocessing**: Runs multiple instances of a `Potential` in parallel across CPU cores
 
 
-## Autobatching
+## Auto-batching
 
-Autobatching improves performance when a `Potential` class's batch methods (`batch_complete` and `batch_prefix`) are more efficient than sequentially running individual instance methods.
+Auto-batching improves performance when a `Potential` class's batch methods (`batch_complete`,  `batch_prefix`, `batch_logw_next`, `batch_score`) are more efficient than sequentially running individual instance methods.
 
 ### Usage
 
-To enable autobatching, use the `to_autobatched()` method:
+To enable auto-batching, use the `to_autobatched()` method:
 
 ```python
 autobatched_potential = potential.to_autobatched()
@@ -22,7 +22,7 @@ results = await asyncio.gather(
 )
 ```
 
-The wrapper automatically collects concurrent requests in the background and processes them together using the potential's batch methods. This happens transparently without requiring changes to your code structure.
+This creates a new potential that is a wrapper ([`AutoBatchedPotential`](../reference/genlm_control/potential/autobatch)) around the original potential. The wrapper automatically collects concurrent requests in the background and processes them together using the potential's batch methods. This happens transparently without requiring changes to your code structure.
 
 ## Multiprocessing
 
@@ -41,7 +41,7 @@ results = await asyncio.gather(
 )
 ```
 
-The wrapper asynchronously distributes requests across multiple processes (in a non-blocking manner). This allows you to scale your computations across multiple cores without changing your code structure.
+This creates a new potential that is a wrapper ([`MultiProcPotential`](../reference/genlm_control/potential/multi_proc)) around the original potential. The wrapper asynchronously distributes requests across multiple processes (in a non-blocking manner). This allows you to scale your computations across multiple cores without changing your code structure.
 
 ### Requirements
 
@@ -57,8 +57,8 @@ In the batched case, requests within a batch are processed in parallel across wo
 
 ## When to use each optimization
 
-> **Note:** Built-in `Potential` classes that can benefit from autobatching support (e.g., `PromptedLLM`) will have autobatching enabled by default.
+> **Note:** Built-in `Potential` classes that can benefit from auto-batching support (e.g., `PromptedLLM`) will have auto-batching enabled by default.
 
-- Use autobatching when the potential's batch operations are more efficient than sequential operations
+- Use auto-batching when the potential's batch operations are more efficient than sequential operations
 - Use multiprocessing when the potential's operations are compute-intensive and can benefit from parallel processing
 - Consider the overhead of each optimization when deciding which to use. Multiprocessing in particular incurs a significant overhead when the potential's operations are not compute-intensive.
