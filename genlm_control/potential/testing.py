@@ -49,7 +49,7 @@ class PotentialTests:
             atol (float): Absolute tolerance for floating point comparison.
             top (int):If specified, only test the top-k tokens by log weight. If None, test all tokens.
             verbosity (int): Verbosity level.
-            *method_args (tuple): Positional arguments to pass to `logw_next`, `prefix`, and `batch_score`.
+            method_args (tuple): Positional arguments to pass to `logw_next`, `prefix`, and `batch_score`.
                 Defaults to empty tuple.
 
         Raises:
@@ -112,7 +112,7 @@ class PotentialTests:
             rtol (float): Relative tolerance for floating point comparison.
             atol (float): Absolute tolerance for floating point comparison.
             verbosity (int): Verbosity level.
-            *method_args (tuple): Positional arguments to pass to `complete`, `prefix`, and `logw_next`.
+            method_args (tuple): Positional arguments to pass to `complete`, `prefix`, and `logw_next`.
                 Defaults to empty tuple.
 
         Raises:
