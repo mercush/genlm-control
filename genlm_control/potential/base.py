@@ -16,8 +16,8 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
     Potentials assign weights to sequences of tokens based on whether they are complete sequences of prefixes of complete sequences.
 
-    - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a *complete* sequence.
-    - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a *prefix*.
+    - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a complete sequence.
+    - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a prefix.
 
     Potentials additionally implement a `logw_next` method:
 

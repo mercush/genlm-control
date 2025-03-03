@@ -1,6 +1,6 @@
 # Potentials
 
-[Potentials](../reference/genlm_control/potential/__init__/) are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning weights to sequences of tokens.
+[Potentials](../reference/genlm_control/potential/__init__/) are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning non-negative weights to sequences of tokens.
 
 Potentials serve two main roles in controlled text generation:
 
@@ -214,7 +214,7 @@ The product potential operates on the intersection of the two potentials' vocabu
 
 - The vocabulary $\A$ is the intersection of the two potentials' vocabularies: $\A = \A_1 \cap \A_2$.
 - The prefix potential $\prefix$ is the product (sum in log space) of the individual prefix potentials: $\log \prefix(\xx) = \log \prefix_1(\xx) + \log \prefix_2(\xx)$.
-- The complete potential $\pot$ is the product (sum in log space) of the individual complete potentials: $\log \pot(\xx) = \log \pot_1(\xx) + \log \pot_2(\xx)$.
+- The complete potential $\complete$ is the product (sum in log space) of the individual complete potentials: $\log \complete(\xx) = \log \complete_1(\xx) + \log \complete_2(\xx)$.
 - The next-token potential $\pot(\cdot \mid \xx)$ is the product (sum in log space) of the individual next-token potentials: $\log \pot(x \mid \xx) = \log \pot_1(x \mid \xx) + \log \pot_2(x \mid \xx)$ for $x \in (\A_1 \cap \A_2) \cup \{\eos\}$
 
 > **Warning:** Be careful when taking products of potentials with minimal vocabulary overlap, as the resulting potential will only operate on tokens present in both vocabularies. A warning will be raised if the vocabulary overlap is less than 10% of either potential's vocabulary.
@@ -304,4 +304,4 @@ Each of the quantities above directly corresponds to a method or attribute of th
 | `complete(self, context)` | $\log \complete(\xx)$ | The complete potential for a given sequence. |
 | `prefix(self, context)` | $\log \prefix(\xx)$ | The prefix potential for a given sequence. |
 | `logw_next(self, context)` | $\log \pot(\cdot \mid \xx)$ | The next-token potential for a given prefix sequence. |
-| `score(self, context)` | $\log \pot(\xx)$ | The potential defined for a possibly eos-terminated sequence. |
+| `score(self, context)` | $\log \pot(\xx)$ | The potential, dispatching to `complete` for eos-terminated sequences and `prefix` otherwise. |

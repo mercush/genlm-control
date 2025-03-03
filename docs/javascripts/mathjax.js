@@ -1,7 +1,5 @@
 window.MathJax = {
     tex: {
-      inlineMath: [['\\(', '\\)']],
-      displayMath: [['\\[', '\\]']],
       macros: {
         bm: ["\\boldsymbol{#1}", 1],
         prefix: "\\psi",

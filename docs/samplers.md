@@ -40,7 +40,7 @@ Both of these set samplers are designed to work with two types of potentials:
 1. An **iterable potential** which has a vocabulary of iterable tokens (e.g., over byte sequences)
 2. An **item potential** which has a vocabulary of items which form the elements of iterable tokens (e.g., over individual bytes)
 
-A common use case is to use these samplers to sample tokens from a language model's vocabulary subject to byte-level constraints (encoded by, e.g., an [FSA](../reference/genlm_control/potential/wfsa/__init__) or [CFG](../reference/genlm_control/potential/wcfg/__init__)).
+These samplers are commonly used to sample tokens from a language model's vocabulary while enforcing byte-level constraints, such as those defined by a [finite-state automaton (FSA)](../reference/genlm_control/potential/wfsa/__init__) or [context-free grammar (CFG)](../reference/genlm_control/potential/wcfg/__init__).
 
 ```python
 # Create a set-based token sampler using a set sampler
@@ -53,7 +53,7 @@ token, logw, logp = await sampler.sample(context)
 
 ### Factory methods
 
-We provide factory methods for creating token samplers from potentials.
+For convenience, we provide factory methods for creating token samplers from potentials.
 
 ```python
 from genlm_control.sampler import direct_token_sampler, topk_token_sampler, eager_token_sampler
