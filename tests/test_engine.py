@@ -1,7 +1,11 @@
 import pytest
 from genlm_control import InferenceEngine
 from genlm_control.potential import PromptedLLM, BoolFSA
-from genlm_control.sampler import direct_token_sampler, eager_token_sampler
+from genlm_control.sampler import (
+    direct_token_sampler,
+    eager_token_sampler,
+    topk_token_sampler,
+)
 
 
 @pytest.fixture(scope="module")
@@ -102,6 +106,26 @@ async def test_with_llm_and_fsa_eager_sampler(llm, best_fsa):
     mtl_llm.set_prompt_from_str("Montreal is")
 
     sampler = eager_token_sampler(mtl_llm, best_fsa)
+    engine = InferenceEngine(sampler)
+
+    await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
+
+    nyc_llm = mtl_llm.spawn()
+    nyc_llm.set_prompt_from_str("NYC is")
+
+    engine = InferenceEngine(sampler, critic=nyc_llm)
+
+    await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
+
+    await engine.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_with_llm_and_fsa_topk_sampler(llm, best_fsa):
+    mtl_llm = llm.spawn_new_eos([b"."])
+    mtl_llm.set_prompt_from_str("Montreal is")
+
+    sampler = topk_token_sampler(mtl_llm, best_fsa, K=10)
     engine = InferenceEngine(sampler)
 
     await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
