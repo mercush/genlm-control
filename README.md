@@ -3,7 +3,9 @@
 
 # GenLM Control
 
-A library for controlled generation with programmable constraints. See the [docs](https://chisym.github.io/genlm-control/) for details and [examples](https://github.com/chisym/genlm-control/tree/main/examples) for usage.
+GenLM Control is a controlled generation with programmable constraints. It leverages sequential Monte Carlo (SMC) methods to efficiently generate text that satisfies constraints or preferences encoded by arbitrary potential functions.
+
+ See the [docs](https://chisym.github.io/genlm-control/) for details and [examples](https://github.com/chisym/genlm-control/tree/main/examples) for usage.
 
 > **⚠️ Warning:** This library is currently in active development. Please report any bugs in [the issue tracker](https://github.com/chisym/genlm-control/issues).
 
