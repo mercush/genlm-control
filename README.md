@@ -3,13 +3,18 @@
 
 # GenLM Control
 
+A library for controlled generation with programmable constraints. See the [docs](https://chisym.github.io/genlm-control/) for details and [examples](https://github.com/chisym/genlm-control/tree/main/examples) for usage.
+
+> **⚠️ Warning:** This library is currently in active development. Please report any bugs in [the issue tracker](https://github.com/chisym/genlm-control/issues).
+
+
 ## Quick Start
 
 ### Installation
 
 Clone the repository:
 ```bash
-git clone git@github.com:chi-collective/genlm-control.git
+git clone git@github.com:ChiSym/genlm-control.git
 cd genlm-control
 ```
 and install with pip:
