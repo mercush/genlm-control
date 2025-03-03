@@ -50,13 +50,13 @@ class TokenMappings(NamedTuple):
 class PromptedLLM(Potential):
     """A potential representing a language model conditioned on a fixed prompt prefix.
 
-    `PromptedLLM`s operate on byte sequences. The `decode` attribute corresponds to the byte representations of the tokens
+    `PromptedLLM`s operate on byte sequences. The `vocab` attribute corresponds to the byte representations of the tokens
     in the vocabulary of the language model's tokenizer, excluding any tokens specified as end-of-sequence tokens
     via the `eos_tokens` argument.
 
     Notes on EOS Token Handling:\n
     - Tokens to treat as end-of-sequence tokens are specified via the `eos_tokens` argument.\n
-    - These tokens are excluded from the potential's vocabulary and as such do not appear in the `decode` attribute.\n
+    - These tokens are excluded from the potential's vocabulary and as such do not appear in the `vocab` attribute.\n
         This means they cannot appear in any input contexts to the potential nor in the output of `logw_next`. They can be used in the prompt however.\n
     - The log probability assigned to the `genlm_control`'s reserved `EOS` token is the sum of the log probabilities of all the specified EOS tokens.\n
 

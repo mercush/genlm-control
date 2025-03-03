@@ -19,7 +19,7 @@ class SetSampler(ABC):
         \\textsf{target.logw_next}(x_n | x_1, \\ldots, x_{n-1}) - \\log \\Pr(x_n \\in S)
     $$
 
-    where $\\Pr(x_n \\in S)$ is the probability the token was included in the sampled set.
+    where $\\Pr(x_n \\in S)$ is the probability the token was included in a sampled set.
 
     Attributes:
         target (Potential): The target potential with respect to which the set's weights are computed.
