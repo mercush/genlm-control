@@ -1,6 +1,5 @@
 import string
 import numpy as np
-import warnings
 from arsenal.maths import logsumexp
 
 from genlm_grammar import Float, Log, WFSA as BaseWFSA
@@ -38,9 +37,6 @@ class WFSA(Potential):
             raise ValueError(f"Unsupported semiring: {wfsa.R}")
 
         if wfsa.R is Float:
-            warnings.warn(
-                "Converting WFSA to log semiring to avoid underflow", UserWarning
-            )
             self.wfsa = self._convert_to_log(wfsa)
         else:
             self.wfsa = wfsa
