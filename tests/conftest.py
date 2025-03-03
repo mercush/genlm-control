@@ -101,10 +101,9 @@ class WeightedSet(Potential):
             for prefix, w in prefix_ws.items()
         }
         total_weight = sum(weights)
-        assert (
-            self.prefix_log_ws[()] == np.log(total_weight)
-            if total_weight != 0
-            else float("-inf")
+        assert np.isclose(
+            self.prefix_log_ws[()],
+            np.log(total_weight) if total_weight != 0 else float("-inf")
         )
 
         super().__init__(list(set(t for seq in sequences for t in seq)))
