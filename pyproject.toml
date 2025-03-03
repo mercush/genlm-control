@@ -39,4 +39,10 @@ docs = [
 ]
 
 [tool.setuptools]
-packages = ["genlm_control"]
+packages = [
+    "genlm_control",
+    "genlm_control.experimental",
+    "genlm_control.potential",
+    "genlm_control.potential.built_in",
+    "genlm_control.sampler",
+]
