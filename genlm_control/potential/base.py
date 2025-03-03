@@ -12,15 +12,18 @@ from genlm_control.potential.testing import PotentialTests
 class Potential(ABC, PotentialOps, PotentialTests):
     """Abstract base class for potentials.
 
-    A Potential represents a weighted language over sequences of tokens from a vocabulary.
+    A Potential is a function that maps sequences of tokens in a vocabulary to non-negative real numbers (weights).
 
-    Potentials implement three key methods:
+    Potentials assign weights to sequences of tokens based on whether they are complete sequences of prefixes of complete sequences.
 
-    - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a member of the language.
-    - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a *prefix* of the language.
+    - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a complete sequence.
+    - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a prefix.
+
+    Potentials additionally implement a `logw_next` method:
+
     - `logw_next`: Compute the next-token log weights of each token in the vocabulary and a special EOS (end-of-sequence) token given a context.
 
-    Subclasses must minimally implement `complete` and `prefix`. `logw_next` and the batch methods
+    Subclasses must minimally implement `complete` and `prefix`. `logw_next` and batched versions of the above methods
     come with default implementations, but may be overridden by subclasses for improved performance.
 
     All Potentials must satisfy a set of properties which can be tested using [PotentialTests](testing.md#genlm_control.potential.testing.PotentialTests).

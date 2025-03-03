@@ -54,19 +54,19 @@ class Coerced(Potential):
         self.potential = potential
         self.f = f
 
-        valid_tokens = []
-        for target_token in target_vocab:
-            if prune:
+        if prune:
+            tokens = []
+            for target_token in target_vocab:
                 base_token = f([target_token])
                 if set(base_token) <= set(potential.vocab):
-                    valid_tokens.append(target_token)
-            else:
-                valid_tokens.append(target_token)
+                    tokens.append(target_token)
+        else:
+            tokens = target_vocab
 
-        if not valid_tokens:
+        if not tokens:
             raise ValueError("No valid tokens found in target vocabulary")
 
-        super().__init__(valid_tokens)
+        super().__init__(tokens)
 
     def _batch_f(self, contexts):
         return [self.f(context) for context in contexts]

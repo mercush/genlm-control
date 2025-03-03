@@ -34,6 +34,10 @@ plugins:
 nav:
   - Home: index.md
   - Code Reference: reference/
+  - Core Concepts:
+    - Potentials: potentials.md
+    - Samplers: samplers.md
+  - Performance: performance.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -45,8 +49,11 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.arithmatex:
       generic: true
+  - footnotes
 
 extra_javascript:
-  - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 repo_url: https://github.com/ChiSym/genlm-control

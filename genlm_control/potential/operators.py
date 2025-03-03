@@ -3,7 +3,7 @@ class PotentialOps:
 
     1. Product (`*`): Take the product of two potentials.\n
     2. Coercion (`coerce`): Coerce the potential to operate on another potential's vocabulary.\n
-    3. Auto-batching (`to_auto_batched`): Create a version that automatically batches concurrent requests to the instance methods.\n
+    3. Auto-batching (`to_autobatched`): Create a version that automatically batches concurrent requests to the instance methods.\n
     4. Parallelization (`to_multiprocess`): Create a version that parallelizes operations over multiple processes.\n
     """
 

@@ -38,7 +38,15 @@ class TokenSampler(SubModel):
         return token
 
     async def sample(self, context, draw):
-        """Sample a token and weight from the potential's vocabulary."""
+        """Sample a token and weight from the `target`potential's vocabulary.
+
+        Args:
+            context (list[int]): A sequence of tokens in the `target` potential's vocabulary.
+            draw (callable): A callable that draws a sample from a distribution.
+
+        Returns:
+            (token, weight, logp): A tuple containing the sampled token, weight, and log-probability of the sampled token.
+        """
         raise NotImplementedError("Subclasses must implement sample method")
 
     async def trace_swor(self, context):

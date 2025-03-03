@@ -51,9 +51,11 @@ class InferenceEngine:
                 raise ValueError(
                     "`critic` must have the same token type as the `unit_sampler`. "
                     f"Got {unit_sampler.token_type} and {critic.token_type}."
-                    f"\nMaybe you forgot to coerce the critic to the token type of the unit sampler? See `Coerce`."
-                    if critic.token_type.is_iterable_of(unit_sampler.token_type)
-                    else ""
+                    + (
+                        "\nMaybe you forgot to coerce the critic to the token type of the unit sampler? See `Coerce`."
+                        if unit_sampler.token_type.is_iterable_of(critic.token_type)
+                        else ""
+                    )
                 )
 
         self.unit_sampler = unit_sampler
@@ -62,7 +64,7 @@ class InferenceEngine:
             unit_sampler=unit_sampler, critic=critic, max_tokens=float("inf")
         )
 
-    async def __call__(self, n_particles, ess_threshold, max_tokens):
+    async def __call__(self, n_particles, ess_threshold, max_tokens, **kwargs):
         """Generate sequences using sequential Monte Carlo inference.
 
         Args:
@@ -75,6 +77,8 @@ class InferenceEngine:
                 Higher values lead to more frequent resampling.
             max_tokens (int): Maximum number of tokens to generate per sequence. Generation
                 may terminate earlier if all sequences reach an EOS token.
+            **kwargs (dict): Additional keyword arguments to pass to the SMC algorithm.
+                See the `hfppl` documentation for more details.
 
         Returns:
             (Sequences): A container holding the generated sequences, their importance weights, and
@@ -87,6 +91,7 @@ class InferenceEngine:
                 model=self.model,
                 n_particles=n_particles,
                 ess_threshold=ess_threshold,
+                **kwargs,
             )
         finally:
             self.model.max_tokens = original_max_tokens
