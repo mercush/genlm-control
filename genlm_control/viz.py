@@ -106,6 +106,9 @@ class InferenceVisualizer:
             json_path (str): Path to the JSON file containing the inference run record
             auto_open (bool): Whether to automatically open the visualization in a browser
 
+        Returns:
+            str: The URL of the visualization
+
         Raises:
             FileNotFoundError: If the JSON file cannot be found
         """
