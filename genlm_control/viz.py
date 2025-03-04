@@ -14,13 +14,14 @@ class InferenceVisualizer:
 
     Example:
         ```python
-        from genlm_control.viz import InferenceVisualizer
+        from genlm_control import InferenceVisualizer
         # create the visualizer
         viz = InferenceVisualizer()
         # run inference and save the record to a JSON file
         sequences = await engine(
             n_particles=10,
             max_tokens=20,
+            ess_threshold=0.5,
             json_path="smc_record.json" # save the record to a JSON file
         )
         # visualize the inference run
