@@ -9,6 +9,7 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
+    { name = "Ben LeBrun", email = "benlebrun1@gmail.com" },
     { name = "The GenLM Team" },
 ]
 dependencies = [
