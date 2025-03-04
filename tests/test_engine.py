@@ -51,6 +51,7 @@ async def test_with_llm(llm):
     await engine.cleanup()
 
 
+@pytest.mark.asyncio
 async def test_with_llm_and_visualization(llm):
     mtl_llm = llm.spawn_new_eos([b"."])
     mtl_llm.set_prompt_from_str("Montreal is")
