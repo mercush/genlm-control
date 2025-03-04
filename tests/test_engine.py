@@ -18,9 +18,12 @@ def best_fsa():
     return BoolFSA.from_regex(r"\sthe\s(best|greatest).+")
 
 
-async def assert_engine_run(engine, n_particles, max_tokens, ess_threshold):
+async def assert_engine_run(engine, n_particles, max_tokens, ess_threshold, **kwargs):
     sequences = await engine(
-        n_particles=n_particles, ess_threshold=ess_threshold, max_tokens=max_tokens
+        n_particles=n_particles,
+        ess_threshold=ess_threshold,
+        max_tokens=max_tokens,
+        **kwargs,
     )
 
     assert len(sequences) == n_particles
@@ -44,6 +47,34 @@ async def test_with_llm(llm):
     )
 
     assert all(b"." not in seq for seq, _ in sequences)
+
+    await engine.cleanup()
+
+
+async def test_with_llm_and_visualization(llm):
+    mtl_llm = llm.spawn_new_eos([b"."])
+    mtl_llm.set_prompt_from_str("Montreal is")
+
+    sampler = direct_token_sampler(mtl_llm)
+    engine = InferenceEngine(sampler, visualize=True)
+
+    await assert_engine_run(
+        engine,
+        n_particles=10,
+        max_tokens=5,
+        ess_threshold=0.5,
+        verbosity=1,
+        visualize=True,
+    )
+
+    await assert_engine_run(
+        engine,
+        n_particles=10,
+        max_tokens=5,
+        ess_threshold=0.5,
+        verbosity=1,
+        visualize=True,
+    )
 
     await engine.cleanup()
 

@@ -26,7 +26,8 @@ engine = InferenceEngine(sampler)
 sequences = await engine(
     n_particles=10, # Number of candidate sequences to maintain
     ess_threshold=0.5, # Threshold for resampling
-    max_tokens=25 # Maximum sequence length
+    max_tokens=25, # Maximum sequence length
+    verbosity=1 # Print particles at each step
 )
 
 # Show the inferred posterior distribution over sequences
@@ -34,6 +35,10 @@ sequences.posterior
 ```
 
 See also the examples in `examples/getting_started.py` for more complex usage.
+
+## Visualization
+
+The library includes a built-in visualization tool for inference runs, courtesy of [hfppl](https://github.com/probcomp/hfppl). To use it, enable visualization by passing `visualize=True` to the engine call. (If you are SSH-ing onto a remote machine, you may need to set up port forwarding. Visual Studio Code automatically handles this for some ports, including the default port 8000.)
 
 
 ## Main components

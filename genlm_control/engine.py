@@ -2,7 +2,11 @@ from genlm_control.potential import Potential
 from genlm_control.sampler.token import TokenSampler
 from genlm_control.sampler.sequence import SequenceModel, _unpack_particles, Sequences
 
+import os
+from pathlib import Path
 from hfppl import smc_standard
+
+from genlm_control.viz import SMCVisualizer
 
 
 class InferenceEngine:
@@ -64,7 +68,16 @@ class InferenceEngine:
             unit_sampler=unit_sampler, critic=critic, max_tokens=float("inf")
         )
 
-    async def __call__(self, n_particles, ess_threshold, max_tokens, **kwargs):
+    async def __call__(
+        self,
+        n_particles,
+        ess_threshold,
+        max_tokens,
+        verbosity=0,
+        visualize=False,
+        viz_port=None,
+        **kwargs,
+    ):
         """Generate sequences using sequential Monte Carlo inference.
 
         Args:
@@ -77,8 +90,12 @@ class InferenceEngine:
                 Higher values lead to more frequent resampling.
             max_tokens (int): Maximum number of tokens to generate per sequence. Generation
                 may terminate earlier if all sequences reach an EOS token.
+            verbosity (int, optional): Verbosity level for the SMC algorithm. 0 is silent, 1 prints the
+                particles at each step. Default is 0.
+            visualize (bool, optional): Whether to visualize the inference run in a browser. Default is False.
+            viz_port (int, optional): Port to use for the visualization server. If None, uses the default port (8000).
             **kwargs (dict): Additional keyword arguments to pass to the SMC algorithm.
-                See the `hfppl` documentation for more details.
+                See the `hfppl.inference.smc_standard` documentation for more details.
 
         Returns:
             (Sequences): A container holding the generated sequences, their importance weights, and
@@ -86,15 +103,42 @@ class InferenceEngine:
         """
         try:
             original_max_tokens = self.model.max_tokens
+            original_verbosity = self.model.verbosity
             self.model.max_tokens = max_tokens
-            particles = await smc_standard(
-                model=self.model,
-                n_particles=n_particles,
-                ess_threshold=ess_threshold,
-                **kwargs,
-            )
+            self.model.verbosity = verbosity
+
+            if visualize:
+                if viz_port is not None:
+                    SMCVisualizer.set_port(viz_port)
+
+                html_path = Path(__file__).parent / "html"
+                json_path = html_path / "smc_visualization_tmp.json"
+
+                particles = await smc_standard(
+                    model=self.model,
+                    n_particles=n_particles,
+                    ess_threshold=ess_threshold,
+                    json_file=json_path,
+                    **kwargs,
+                )
+
+                if not os.path.exists(json_path):
+                    print(
+                        "Warning: Visualization was requested but no JSON file was created."
+                    )
+                else:
+                    url = SMCVisualizer.visualize_smc(json_path=json_path, cleanup=True)
+                    print(f"Visualization available at: {url}")
+            else:
+                particles = await smc_standard(
+                    model=self.model,
+                    n_particles=n_particles,
+                    ess_threshold=ess_threshold,
+                    **kwargs,
+                )
         finally:
             self.model.max_tokens = original_max_tokens
+            self.model.verbosity = original_verbosity
 
         return Sequences(*_unpack_particles(particles))
 
@@ -115,3 +159,6 @@ class InferenceEngine:
         await self.unit_sampler.cleanup()
         if self.critic:
             await self.critic.cleanup()
+
+    def __del__(self):
+        SMCVisualizer.shutdown_server()
