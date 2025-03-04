@@ -50,9 +50,7 @@ class TokenMappings(NamedTuple):
 class PromptedLLM(Potential):
     """A potential representing a language model conditioned on a fixed prompt prefix.
 
-    `PromptedLLM`s operate on byte sequences. The `vocab` attribute corresponds to the byte representations of the tokens
-    in the vocabulary of the language model's tokenizer, excluding any tokens specified as end-of-sequence tokens
-    via the `eos_tokens` argument.
+    `PromptedLLM`s operate on byte sequences.
 
     Notes on EOS Token Handling:\n
     - Tokens to treat as end-of-sequence tokens are specified via the `eos_tokens` argument.\n
