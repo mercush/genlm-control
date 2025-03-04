@@ -104,10 +104,11 @@ cfg = WCFG.from_string("""
 # Create a boolean CFG from a Lark grammar string
 cfg = BoolCFG.from_lark("""
     start: np vp
-    np: "the" n | "a" n
-    vp: v np
+    np: ("the" | "a") WS n
+    vp: WS v WS np
     n: "cat" | "dog"
     v: "saw" | "chased"
+    %import common.WS
 """)
 ```
 
