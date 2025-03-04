@@ -6,7 +6,7 @@
 
 ### Vocabulary
 
-Each potential has a **vocabulary** which defines the set of tokens it operates on. The vocabulary is accessible via the `vocab` attribute and can contain any hashable Python objects (e.g., bytes, strings, integers). Most built-in potentials operate on vocabularies whose tokens are `bytes` or `int` objects (the latter often representing individual bytes), but can be adapted to work with other token types via coercion (see [Coerced potentials](#coerced-potentials)).
+Each potential has a **vocabulary** which defines the set of tokens it operates on. Most built-in potentials operate on vocabularies whose tokens are `bytes` or `int` objects (the latter often representing individual bytes).
 
 ### Weight assignment
 
@@ -24,9 +24,9 @@ The relationship between complete and prefix weights is formalized in the [Forma
 
 ### Next-token weights
 
-The `logw_next` method computes weights for each possible next token in the potential's vocabulary (and a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step.
+Potentials also implement a `logw_next` method, which computes weights for each possible next token in the potential's vocabulary (and a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step.
 
-The `logw_next` method implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. However, `logw_next` must satisfy a contract with `complete`/`prefix`, given in the [Formalization](#formalization) section.
+The `logw_next` method is implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. However, `logw_next` must satisfy a contract with `complete`/`prefix`, specified in [Formalization](#formalization).
 
 ### Batch methods
 
