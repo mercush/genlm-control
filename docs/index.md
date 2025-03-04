@@ -5,9 +5,9 @@ GenLM Control is a library for controlled text generation with programmable cons
 ## Getting started
 
 ```python
-from genlm_control import InferenceEngine
-from genlm_control.potential import PromptedLLM, BoolFSA
-from genlm_control.sampler import eager_token_sampler
+from genlm_control import (
+    InferenceEngine, PromptedLLM, BoolFSA, eager_token_sampler
+)
 
 # Create a language model potential
 llm = PromptedLLM.from_name("gpt2")
@@ -22,7 +22,7 @@ sampler = eager_token_sampler(llm, fsa)
 # Set up the inference engine with the sampler
 engine = InferenceEngine(sampler)
 
-# Generate text using SMC. Generation is asynchronous; use `await` or `asyncio.run`.
+# Generate text using SMC. Generation is asynchronous; use `await`.
 sequences = await engine(
     n_particles=10, # Number of candidate sequences to maintain
     ess_threshold=0.5, # Threshold for resampling
@@ -53,13 +53,13 @@ The library comes with a number of built-in potentials, including
 
 It also supports [user-defined potentials](potentials.md#custom-potentials) and combinations of potentials using [products](potentials.md#products-of-potentials).
 
-See the [Potentials](potentials.md) documentation for more details.
+See the [Potentials](potentials.md) overview for more details.
 
 ### [Samplers](samplers.md)
 
 Samplers generate tokens by sampling from potentials or collections of potentials. This library currently supports a number of different sampling strategies which trade off quality and efficiency.
 
-See the [Samplers](samplers.md) documentation for more details.
+See the [Samplers](samplers.md) overview for more details.
 
 ### Critics
 Critics are used to evaluate the quality of a sequence which is in the process of being generated. Any Potential can serve as a critic. To use them in generation, pass them to the `InferenceEngine` at initialization.
