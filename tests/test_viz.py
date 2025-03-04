@@ -2,9 +2,9 @@ import pytest
 import json
 import socket
 import tempfile
-from pathlib import Path
-import requests
 import time
+import requests
+from pathlib import Path
 from genlm_control.viz import InferenceVisualizer
 
 
@@ -17,7 +17,7 @@ def is_port_in_use(port):
 @pytest.fixture
 def viz():
     """Fixture that provides a visualizer and ensures cleanup."""
-    visualizer = InferenceVisualizer(port=8000)
+    visualizer = InferenceVisualizer()
     yield visualizer
     visualizer.shutdown_server()
 
@@ -25,7 +25,7 @@ def viz():
 def test_server_starts_on_default_port():
     """Test that server starts on the default port (8000)."""
     assert not is_port_in_use(8000)
-    viz = InferenceVisualizer()  # Should start immediately
+    viz = InferenceVisualizer()
     try:
         assert is_port_in_use(8000)
     finally:
@@ -43,86 +43,66 @@ def test_server_uses_specified_port():
         viz.shutdown_server()
 
 
-def test_port_change(viz):
-    """Test that server can change ports."""
-    assert is_port_in_use(8000)
-    viz.set_port(8001)
-    assert is_port_in_use(8001)
-    assert not is_port_in_use(8000)
+def test_visualization_with_custom_dir():
+    """Test visualization with a custom serve directory."""
+    test_data = {
+        "step": 0,
+        "mode": "init",
+        "particles": [{"contents": "a", "logweight": "0", "weight_incr": "0"}],
+    }
+    with tempfile.TemporaryDirectory() as serve_dir:
+        viz = InferenceVisualizer(serve_dir=serve_dir)
+        try:
+            # Create a test JSON file in the serve directory
+            json_path = Path(serve_dir) / "test.json"
+            with open(json_path, "w") as f:
+                json.dump(test_data, f)
+
+            # Should be able to visualize immediately
+            response = requests.get(f"http://localhost:8000/{json_path.name}")
+            assert response.status_code == 200
+            assert response.json() == test_data
+        finally:
+            viz.shutdown_server()
 
 
-def test_visualization_with_json(viz):
-    """Test visualization with a JSON file."""
-    # Create a temporary JSON file
-    test_data = {"step": 0, "particles": []}
-    with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
-        json.dump(test_data, f)
-        json_path = Path(f.name)
-
+def test_visualization_with_external_file():
+    """Test visualization with a file outside the serve directory."""
+    viz = InferenceVisualizer()
+    test_data = {
+        "step": 0,
+        "mode": "init",
+        "particles": [{"contents": "a", "logweight": "0", "weight_incr": "0"}],
+    }
     try:
-        # Visualize the JSON
-        url = viz.visualize(json_path, auto_open=False)
+        # Create a test JSON file in a different directory
+        with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
+            json.dump(test_data, f)
+            json_path = Path(f.name)
 
-        # Check that server is running and URL is correct
-        assert url.startswith("http://localhost:8000/smc.html")
-
-        # Check that we can access the visualization
-        response = requests.get(url)
+        # Should copy file and make it available
+        viz.visualize(json_path)
+        response = requests.get(f"http://localhost:8000/{json_path.name}")
         assert response.status_code == 200
-
-        # Check that JSON file was copied to html directory
-        html_dir = Path(__file__).parent.parent / "genlm_control" / "html"
-        copied_json = html_dir / json_path.name
-        assert copied_json.exists()
+        assert response.json() == test_data
 
     finally:
-        # Cleanup
+        viz.shutdown_server()
         json_path.unlink()
 
 
 def test_server_cleanup():
     """Test that server cleanup works correctly."""
     viz = InferenceVisualizer()
-    assert is_port_in_use(8000)
+    temp_dir = viz._serve_dir
+    assert temp_dir.exists()
 
     viz.shutdown_server()
     time.sleep(0.5)  # Give the server a moment to fully shut down
 
-    # Verify server is shut down
+    # Verify server is shut down and temp directory is cleaned up
     assert not is_port_in_use(8000)
-
-
-def test_multiple_visualizations(viz):
-    """Test that multiple visualizations work correctly."""
-    # Create two test JSON files
-    test_data = {
-        "step": 0,
-        "model": "init",
-        "particles": [{"contents": "a", "logweight": "0", "weight_incr": "0"}],
-    }
-    json_paths = []
-    for i in range(2):
-        with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
-            json.dump(test_data, f)
-            json_paths.append(Path(f.name))
-
-    try:
-        # Visualize both files
-        for json_path in json_paths:
-            url = viz.visualize(json_path, auto_open=False)
-            response = requests.get(url)
-            assert response.status_code == 200
-
-        # Check that both files were copied to html directory
-        html_dir = Path(__file__).parent.parent / "genlm_control" / "html"
-        for json_path in json_paths:
-            copied_json = html_dir / json_path.name
-            assert copied_json.exists()
-
-    finally:
-        # Cleanup
-        for path in json_paths:
-            path.unlink()
+    assert not temp_dir.exists()
 
 
 def test_port_in_use():
@@ -130,9 +110,7 @@ def test_port_in_use():
     viz1 = InferenceVisualizer(port=8002)
     try:
         with pytest.raises(OSError) as exc_info:
-            InferenceVisualizer(
-                port=8002
-            )  # Try to create second visualizer on same port
+            InferenceVisualizer(port=8002)
         assert "Port 8002 is already in use" in str(exc_info.value)
     finally:
         viz1.shutdown_server()
