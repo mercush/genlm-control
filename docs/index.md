@@ -36,10 +36,6 @@ sequences.posterior
 
 See also the examples in `examples/getting_started.py` for more complex usage.
 
-## Visualization
-
-The library includes a built-in visualization tool for inference runs, courtesy of [hfppl](https://github.com/probcomp/hfppl). To use it, enable visualization by passing `visualize=True` to the engine call. (If you are SSH-ing onto a remote machine, you may need to set up port forwarding. Visual Studio Code automatically handles this for some ports, including the default port 8000.)
-
 
 ## Main components
 
@@ -67,3 +63,31 @@ See the [Samplers](samplers.md) documentation for more details.
 
 ### Critics
 Critics are used to evaluate the quality of a sequence which is in the process of being generated. Any Potential can serve as a critic. To use them in generation, pass them to the `InferenceEngine` at initialization.
+
+
+## Visualization
+
+The library includes a built-in visualization tool for inference runs, courtesy of [hfppl](https://github.com/probcomp/hfppl).
+
+```python
+from genlm_control.viz import InferenceVisualizer
+
+# Create a visualizer (starts server on port 8000, you can specify a different port if needed)
+viz = InferenceVisualizer()
+
+# Run inference and save a record of the inference run to a JSON file
+sequences = await engine(
+    n_particles=10,
+    ess_threshold=0.5,
+    max_tokens=20,
+    json_path="smc_record.json" # save the record to a JSON file
+)
+
+# Open visualization in browser
+viz.visualize("smc_record.json", auto_open=True)
+
+# Clean up when done
+viz.shutdown_server()
+```
+
+Note that if you are SSH-ing onto a remote machine, you may need to set up port forwarding. Visual Studio Code automatically handles this for some ports, including the default port 8000.

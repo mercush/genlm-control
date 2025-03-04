@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 import requests
 import time
-from genlm_control.viz import SMCVisualizer
+from genlm_control.viz import InferenceVisualizer
 
 
 def is_port_in_use(port):
@@ -15,35 +15,43 @@ def is_port_in_use(port):
 
 
 @pytest.fixture
-def cleanup_server():
-    """Fixture to ensure server is shut down after each test."""
-    yield
-    SMCVisualizer.shutdown_server()
+def viz():
+    """Fixture that provides a visualizer and ensures cleanup."""
+    visualizer = InferenceVisualizer(port=8000)
+    yield visualizer
+    visualizer.shutdown_server()
 
 
-def test_server_starts_on_default_port(cleanup_server):
+def test_server_starts_on_default_port():
     """Test that server starts on the default port (8000)."""
     assert not is_port_in_use(8000)
-    port = SMCVisualizer.ensure_server_running()
-    assert port == 8000
-    assert is_port_in_use(8000)
+    viz = InferenceVisualizer()  # Should start immediately
+    try:
+        assert is_port_in_use(8000)
+    finally:
+        viz.shutdown_server()
 
 
-def test_server_changes_port(cleanup_server):
+def test_server_uses_specified_port():
+    """Test that server uses the specified port."""
+    assert not is_port_in_use(8001)
+    viz = InferenceVisualizer(port=8001)
+    try:
+        assert is_port_in_use(8001)
+        assert not is_port_in_use(8000)
+    finally:
+        viz.shutdown_server()
+
+
+def test_port_change(viz):
     """Test that server can change ports."""
-    # Start on default port
-    SMCVisualizer.ensure_server_running()
     assert is_port_in_use(8000)
-
-    # Change to new port
-    SMCVisualizer.set_port(8001)
-    port = SMCVisualizer.ensure_server_running()
-    assert port == 8001
+    viz.set_port(8001)
     assert is_port_in_use(8001)
     assert not is_port_in_use(8000)
 
 
-def test_visualization_with_json(cleanup_server):
+def test_visualization_with_json(viz):
     """Test visualization with a JSON file."""
     # Create a temporary JSON file
     test_data = {"step": 0, "particles": []}
@@ -53,7 +61,7 @@ def test_visualization_with_json(cleanup_server):
 
     try:
         # Visualize the JSON
-        url = SMCVisualizer.visualize_smc(json_path, auto_open=False, cleanup=True)
+        url = viz.visualize(json_path, auto_open=False)
 
         # Check that server is running and URL is correct
         assert url.startswith("http://localhost:8000/smc.html")
@@ -72,25 +80,19 @@ def test_visualization_with_json(cleanup_server):
         json_path.unlink()
 
 
-def test_server_cleanup(cleanup_server):
+def test_server_cleanup():
     """Test that server cleanup works correctly."""
-    # Start server
-    SMCVisualizer.ensure_server_running()
+    viz = InferenceVisualizer()
     assert is_port_in_use(8000)
 
-    # Shut down server
-    SMCVisualizer.shutdown_server()
-
-    # Give the server a moment to fully shut down
-    time.sleep(0.5)
+    viz.shutdown_server()
+    time.sleep(0.5)  # Give the server a moment to fully shut down
 
     # Verify server is shut down
     assert not is_port_in_use(8000)
-    assert SMCVisualizer._server is None
-    assert SMCVisualizer._server_thread is None
 
 
-def test_multiple_visualizations(cleanup_server):
+def test_multiple_visualizations(viz):
     """Test that multiple visualizations work correctly."""
     # Create two test JSON files
     test_data = {
@@ -107,7 +109,7 @@ def test_multiple_visualizations(cleanup_server):
     try:
         # Visualize both files
         for json_path in json_paths:
-            url = SMCVisualizer.visualize_smc(json_path, auto_open=False, cleanup=True)
+            url = viz.visualize(json_path, auto_open=False)
             response = requests.get(url)
             assert response.status_code == 200
 
@@ -121,3 +123,16 @@ def test_multiple_visualizations(cleanup_server):
         # Cleanup
         for path in json_paths:
             path.unlink()
+
+
+def test_port_in_use():
+    """Test that appropriate error is raised when port is in use."""
+    viz1 = InferenceVisualizer(port=8002)
+    try:
+        with pytest.raises(OSError) as exc_info:
+            InferenceVisualizer(
+                port=8002
+            )  # Try to create second visualizer on same port
+        assert "Port 8002 is already in use" in str(exc_info.value)
+    finally:
+        viz1.shutdown_server()

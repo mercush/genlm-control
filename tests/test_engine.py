@@ -52,35 +52,6 @@ async def test_with_llm(llm):
 
 
 @pytest.mark.asyncio
-async def test_with_llm_and_visualization(llm):
-    mtl_llm = llm.spawn_new_eos([b"."])
-    mtl_llm.set_prompt_from_str("Montreal is")
-
-    sampler = direct_token_sampler(mtl_llm)
-    engine = InferenceEngine(sampler)
-
-    await assert_engine_run(
-        engine,
-        n_particles=10,
-        max_tokens=5,
-        ess_threshold=0.5,
-        verbosity=1,
-        visualize=True,
-    )
-
-    await assert_engine_run(
-        engine,
-        n_particles=10,
-        max_tokens=5,
-        ess_threshold=0.5,
-        verbosity=1,
-        visualize=True,
-    )
-
-    await engine.cleanup()
-
-
-@pytest.mark.asyncio
 async def test_with_product_llm(llm):
     mtl_llm = llm.spawn_new_eos([b"."])
     mtl_llm.set_prompt_from_str("Montreal is")
@@ -91,7 +62,9 @@ async def test_with_product_llm(llm):
     sampler = direct_token_sampler(mtl_llm * nyc_llm)
     engine = InferenceEngine(sampler)
 
-    await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
+    await assert_engine_run(
+        engine, n_particles=10, max_tokens=25, ess_threshold=0.5, verbosity=1
+    )
 
     await engine.cleanup()
 
