@@ -21,7 +21,12 @@ class SMCVisualizer:
 
     @classmethod
     def set_port(cls, port):
-        """Set the port for the visualization server."""
+        """
+        Set the port for the visualization server.
+
+        Args:
+            port (int): The port to use for the visualization server.
+        """
         if cls._server is not None:
             cls.shutdown_server()
         cls._port = port
@@ -71,12 +76,12 @@ class SMCVisualizer:
         """Visualizes SMC data in a browser.
 
         Args:
-            json_path: Path to the JSON file containing SMC data
-            auto_open: Whether to automatically open the visualization in a browser
-            cleanup: Whether to delete the JSON file after visualization (default is False)
+            json_path (str): Path to the JSON file containing SMC data
+            auto_open (bool): Whether to automatically open the visualization in a browser
+            cleanup (bool): Whether to delete the JSON file after visualization (default is False)
 
         Returns:
-            str: URL to the visualization
+            (str): URL to the visualization
         """
         if not os.path.exists(json_path):
             raise FileNotFoundError(f"JSON file not found: {json_path}")

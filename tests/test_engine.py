@@ -57,7 +57,7 @@ async def test_with_llm_and_visualization(llm):
     mtl_llm.set_prompt_from_str("Montreal is")
 
     sampler = direct_token_sampler(mtl_llm)
-    engine = InferenceEngine(sampler, visualize=True)
+    engine = InferenceEngine(sampler)
 
     await assert_engine_run(
         engine,
