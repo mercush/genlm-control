@@ -22,6 +22,23 @@ def viz():
     visualizer.shutdown_server()
 
 
+@pytest.fixture
+def test_data():
+    return [
+        {
+            "step": 1,
+            "mode": "init",
+            "particles": [
+                {
+                    "contents": "<<<>>>b'h'",
+                    "logweight": "-11.892930183943907",
+                    "weight_incr": "-11.892930183943907",
+                }
+            ],
+        },
+    ]
+
+
 def test_server_starts_on_default_port():
     """Test that server starts on the default port (8000)."""
     assert not is_port_in_use(8000)
@@ -43,13 +60,8 @@ def test_server_uses_specified_port():
         viz.shutdown_server()
 
 
-def test_visualization_with_custom_dir():
+def test_visualization_with_custom_dir(test_data):
     """Test visualization with a custom serve directory."""
-    test_data = {
-        "step": 0,
-        "mode": "init",
-        "particles": [{"contents": "a", "logweight": "0", "weight_incr": "0"}],
-    }
     with tempfile.TemporaryDirectory() as serve_dir:
         viz = InferenceVisualizer(serve_dir=serve_dir)
         try:
@@ -66,14 +78,9 @@ def test_visualization_with_custom_dir():
             viz.shutdown_server()
 
 
-def test_visualization_with_external_file():
+def test_visualization_with_external_file(test_data):
     """Test visualization with a file outside the serve directory."""
     viz = InferenceVisualizer()
-    test_data = {
-        "step": 0,
-        "mode": "init",
-        "particles": [{"contents": "a", "logweight": "0", "weight_incr": "0"}],
-    }
     try:
         # Create a test JSON file in a different directory
         with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
