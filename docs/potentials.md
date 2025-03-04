@@ -91,7 +91,7 @@ cfg = WCFG.from_string("""
     1.0: S -> NP VP
     0.5: NP -> the N
     0.5: NP -> a N
-    0.5: VP -> V NP
+    1.0: VP -> V NP
     0.5: N -> cat
     0.5: N -> dog
     0.5: V -> saw
@@ -119,6 +119,8 @@ Both CFGs:
 * Use Earley parsing for efficient recognition
 * Can be combined with other potentials
 * Operate on byte-level sequences by default
+
+> **Note:** It is recommended to specify grammars via lark syntax. The `from_string` method is provided for convenience, but it is not as flexible and robust.
 
 ## Custom potentials
 
