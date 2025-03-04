@@ -46,3 +46,4 @@ packages = [
     "genlm_control.potential.built_in",
     "genlm_control.sampler",
 ]
+package-data = { "genlm_control" = ["html/*"] }
