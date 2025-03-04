@@ -139,7 +139,7 @@ class SequenceModel(Model):
         )
 
     def string_for_serialization(self):
-        return f"{self.weight:.2f}:\t" + "|".join(repr(y) for y in self.token_ctx)
+        return "|".join(repr(y) for y in self.token_ctx)
 
     def immutable_properties(self):
         return set(["unit_sampler", "critic"])
