@@ -2,13 +2,6 @@
 
 [Potentials](../reference/genlm_control/potential/__init__/) are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning non-negative weights to sequences of tokens.
 
-Potentials serve two main roles in controlled text generation:
-
-1. **Building blocks of [samplers](samplers.md)** - Potentials are key components of samplers, which are used to propose new tokens during generation.
-2. **Critics** - Potentials are used to guide generation by reweighting partial and complete sequences.
-
-This page describes the core concepts and methods of potentials.
-
 ## Key concepts
 
 ### Vocabulary
@@ -23,22 +16,17 @@ A potential defines two core weighting functions:
 
 1. `complete` - Assigns weights to sequences that are considered "finished" or "complete". For example, a potential enforcing grammatical correctness would assign positive weights to grammatically valid sentences and zero weights (negative infinity in log space) to invalid ones.
 
-2. `prefix` - Assigns weights to partial sequences that could potentially be extended into valid complete sequences. For example, a potential enforcing grammatical correctness could assign positive weights to prefixes of grammatically valid sequences.
+2. `prefix` - Assigns weights to partial sequences that could potentially be extended into valid complete sequences. For example, a potential enforcing grammatical correctness would assign positive weights to prefixes of grammatically valid sequences.
 
     Given a complete method, there are many possible prefix methods that could be used, providing as much or as little information as desired. The key requirement is that if a prefix has zero weight, then all of its extensions and completions must also have zero weight - in other words, prefix cannot rule out sequences that could later become valid.
-
-For example, consider a potential that only allows sequences of length $N$:
-
-* The `complete` weight would be positive for sequences of *exactly* length $N$
-* The `prefix` weight would be positive for sequences of length *at most* $N$
 
 The relationship between complete and prefix weights is formalized in the [Formalization](#formalization) section.
 
 ### Next-token weights
 
-The `logw_next` method computes weights for each possible next token in the potential's vocabulary (and a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step of generation.
+The `logw_next` method computes weights for each possible next token in the potential's vocabulary (and a reserved end-of-sequence token) given a context sequence. These weights are crucial for controlled text generation as they can be used to guide the selection of the next token at each step.
 
-The `logw_next` method is implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. However, `logw_next` must satisfy a contract with `complete`/`prefix`, given in the [Formalization](#formalization) section.
+The `logw_next` method implemented by default in terms of the `complete` and `prefix` methods. Potentials will often override this method to provide a more efficient implementation. However, `logw_next` must satisfy a contract with `complete`/`prefix`, given in the [Formalization](#formalization) section.
 
 ### Batch methods
 
@@ -67,7 +55,7 @@ llm = PromptedLLM.from_name("gpt2", temperature=0.5)
 llm.set_prompt_from_str("Montreal is")
 ```
 
-`PromptedLLM`s have a vocabulary of `bytes` tokens, obtained from the language model's tokenizer. See the documentation for more details.
+`PromptedLLM`s have a vocabulary of `bytes` tokens, obtained from the language model's tokenizer.
 
 ### Finite-state automata
 
@@ -103,7 +91,7 @@ cfg = WCFG.from_string("""
     1.0: S -> NP VP
     0.5: NP -> the N
     0.5: NP -> a N
-    0.5: VP -> V NP
+    1.0: VP -> V NP
     0.5: N -> cat
     0.5: N -> dog
     0.5: V -> saw
@@ -116,10 +104,11 @@ cfg = WCFG.from_string("""
 # Create a boolean CFG from a Lark grammar string
 cfg = BoolCFG.from_lark("""
     start: np vp
-    np: "the" n | "a" n
-    vp: v np
+    np: ("the" | "a") WS n
+    vp: WS v WS np
     n: "cat" | "dog"
     v: "saw" | "chased"
+    %import common.WS
 """)
 ```
 
@@ -130,6 +119,8 @@ Both CFGs:
 * Use Earley parsing for efficient recognition
 * Can be combined with other potentials
 * Operate on byte-level sequences by default
+
+> **Note:** It is recommended to specify grammars via lark syntax. The `from_string` method is provided for convenience, but it is not as flexible and robust.
 
 ## Custom potentials
 
@@ -143,7 +134,7 @@ To define a custom potential:
 2. Implement the `complete` and `prefix` methods
 3. Optionally override `logw_next` and the batch methods for performance optimization
 
-The key is understanding the relationship between `complete` and `prefix`. Consider the following example of a potential that only allows sequences of a given length:
+When implementing custom potentials, the key is understanding the relationship between `complete` and `prefix`. Consider the following example of a potential that only allows sequences of a given length:
 
 ```python
 class LengthPotential(Potential):
@@ -178,11 +169,7 @@ When implementing custom potentials, be aware of these common issues:
 
 ### Testing your custom potential
 
-Potentials automatically inherit from the [`PotentialTests`](../reference/genlm_control/potential/testing) mixin, which provides a number of tests for validating the correctness of the potential's implementation:
-
-* `assert_logw_next_consistency(context)`: Verifies that token-level log weights are consistent with prefix and complete scores for a given context.
-* `assert_autoreg_fact(context)`: Validates that complete scores factor correctly as a sum of log token weights (with an additional correction term corresponding to the prefix weight of the empty sequence) for a given context.
-* `assert_batch_consistency(contexts)`: Ensures batch operations (`batch_score`, `batch_complete`, `batch_prefix`, `batch_logw_next`) produce identical results to their non-batch counterparts for a given batch of contexts.
+Potentials automatically inherit from the [`PotentialTests`](../reference/genlm_control/potential/testing) mixin, which provides a number of tests for validating the correctness of the potential's implementation.
 
 ```python
 # These will raise an exception if the potential implementation does not satisfy the properties
@@ -197,9 +184,8 @@ await potential.assert_batch_consistency(contexts)
 
 The [`Product`](../reference/genlm_control/potential/product) class allows you to combine two potentials. A `Product` is itself is a potential, meaning that it implements all potential methods and that it is possible to chain products to combine more than two potentials.
 
-
 ```python
-# Example: Combining two language models
+# Example: Prompt intersection
 mtl_llm = PromptedLLM.from_name("gpt2")
 mtl_llm.set_prompt_from_str("Montreal is")
 
@@ -222,7 +208,7 @@ The product potential operates on the intersection of the two potentials' vocabu
 
 ### Coerced potentials
 
-The [`Coerced`](../reference/genlm_control/potential/coerce) class allows you to adapt a potential to work with a different vocabulary by providing a coercion function. The coercion function must map between sequences in the new vocabulary and sequences in the potential's original vocabulary. This is particularly useful when combining potentials that operate on different types of tokens.
+The [`Coerced`](../reference/genlm_control/potential/coerce) class allows you to adapt a potential to work with a different vocabulary using a coercion function. The coercion function must map between sequences in the new vocabulary and sequences in the potential's original vocabulary. This is particularly useful when combining potentials that operate on different types of tokens.
 
 ```python
 # Example: Coercing a byte-level FSA to work with a language model's tokens
@@ -272,7 +258,7 @@ where
 The complete and prefix potentials are related by the following equation:
 
 $$
-\prefix(\xx) > 0 \implies \pot(\xx\yy) > 0 \, \forall \xx,\yy \text{ such that } \xx\yy \in \A^*
+\prefix(\xx) > 0 \implies \complete(\xx\yy) > 0 \, \forall \xx,\yy \text{ such that } \xx\yy \in \A^*
 $$
 
 Intuitively, this means that the prefix potential cannot rule out a sequence which can later on turn out to be valid according to the complete potential.

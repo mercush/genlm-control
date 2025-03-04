@@ -110,7 +110,13 @@ class SequenceModel(Model):
         self.verbosity = verbosity
 
     async def start(self):
-        self.score(await self.unit_sampler.start_weight())
+        start_w = await self.unit_sampler.start_weight()
+        if start_w == float("-inf"):
+            raise ValueError(
+                "Start weight is -inf (log(0)). This is likely because a potential assigns zero weight to "
+                "the empty sequence as a prefix, which violates the potential contract."
+            )
+        self.score(start_w)
 
     async def step(self):
         unit = await self.call(self.unit_sampler)
