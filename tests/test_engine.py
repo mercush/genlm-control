@@ -18,9 +18,12 @@ def best_fsa():
     return BoolFSA.from_regex(r"\sthe\s(best|greatest).+")
 
 
-async def assert_engine_run(engine, n_particles, max_tokens, ess_threshold):
+async def assert_engine_run(engine, n_particles, max_tokens, ess_threshold, **kwargs):
     sequences = await engine(
-        n_particles=n_particles, ess_threshold=ess_threshold, max_tokens=max_tokens
+        n_particles=n_particles,
+        ess_threshold=ess_threshold,
+        max_tokens=max_tokens,
+        **kwargs,
     )
 
     assert len(sequences) == n_particles
@@ -59,7 +62,9 @@ async def test_with_product_llm(llm):
     sampler = direct_token_sampler(mtl_llm * nyc_llm)
     engine = InferenceEngine(sampler)
 
-    await assert_engine_run(engine, n_particles=10, max_tokens=25, ess_threshold=0.5)
+    await assert_engine_run(
+        engine, n_particles=10, max_tokens=25, ess_threshold=0.5, verbosity=1
+    )
 
     await engine.cleanup()
 

@@ -5,6 +5,7 @@ from arsenal.maths import logsumexp, sample_dict
 from functools import cached_property
 from genlm_control import EOS
 from dataclasses import dataclass
+from arsenal import colors
 
 from hfppl import Model
 from hfppl import smc_standard
@@ -97,7 +98,7 @@ class Sequences:
 
 
 class SequenceModel(Model):
-    def __init__(self, unit_sampler, critic=None, max_tokens=float("inf")):
+    def __init__(self, unit_sampler, critic=None, max_tokens=float("inf"), verbosity=0):
         assert max_tokens > 0
 
         super().__init__()
@@ -106,6 +107,7 @@ class SequenceModel(Model):
         self.max_tokens = max_tokens
         self.critic = critic
         self.logp = 0
+        self.verbosity = verbosity
 
     async def start(self):
         self.score(await self.unit_sampler.start_weight())
@@ -118,12 +120,26 @@ class SequenceModel(Model):
             twist_amt = await self.critic.score(self.token_ctx)
             self.twist(twist_amt)
 
+        if self.verbosity > 0:
+            print(self.__repr__())
+
         self.max_tokens -= 1
         if self.max_tokens == 0 or self.token_ctx[-1] is EOS:
             self.finish()
             if self.critic:
                 self.score(twist_amt)
             return
+
+    def __repr__(self):
+        return (
+            f"{self.weight:.2f}:\t"
+            + colors.magenta % "["
+            + (colors.magenta % "|").join(repr(y) for y in self.token_ctx)
+            + colors.magenta % "]"
+        )
+
+    def string_for_serialization(self):
+        return "|".join(repr(y) for y in self.token_ctx)
 
     def immutable_properties(self):
         return set(["unit_sampler", "critic"])

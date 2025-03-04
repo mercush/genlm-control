@@ -17,7 +17,6 @@ class WFSA(Potential):
 
     Attributes:
         wfsa (genlm_grammar.WFSA): The weighted finite state automaton used for potential calculations.
-            Any output weights will be converted to log space.
     """
 
     def __init__(self, wfsa):

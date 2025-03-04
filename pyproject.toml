@@ -9,6 +9,7 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
+    { name = "Ben LeBrun", email = "benlebrun1@gmail.com" },
     { name = "The GenLM Team" },
 ]
 dependencies = [
@@ -46,3 +47,4 @@ packages = [
     "genlm_control.potential.built_in",
     "genlm_control.sampler",
 ]
+package-data = { "genlm_control" = ["html/*"] }
