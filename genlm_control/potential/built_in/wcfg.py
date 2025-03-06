@@ -1,7 +1,7 @@
 import numpy as np
 from genlm_grammar import CFG, Earley, Float
 from genlm_grammar.lark_interface import LarkStuff
-from genlm_grammar.cfglm import locally_normalize, _gen_nt
+from genlm_grammar.cfglm import _gen_nt
 
 from genlm_control.constant import EOS
 from genlm_control.potential.base import Potential
@@ -9,21 +9,20 @@ from genlm_control.potential.base import Potential
 
 class WCFG(Potential):
     """
-    Represents a Weighted Context-Free Grammar (WCFG) potential.
+    A weighted context-free grammar potential.
 
-    Args:
-        cfg (genlm_grammar.CFG): The context-free grammar configuration to use.
-        eos (bytes, optional): The end-of-sequence token. If not provided, a default
-            value will be used.
-
-    Methods:
-        complete(context): Computes the log weight of the context under the WCFG.
-        prefix(context): Computes the log prefix weight of the context under the WCFG.
-        logw_next(context): Computes the log weights for the next tokens given the context.
-        clear_cache(): Clears the internal cache of the grammar model.
+    This class wraps a `genlm_grammar.CFG` and provides methods for computing the log-weight of a sequence,
+    the prefix log-weight of a sequence, and the log-weights of the next token given a sequence.
     """
 
     def __init__(self, cfg):
+        """
+        Initialize the WCFG potential.
+
+        Args:
+            cfg (genlm_grammar.CFG): The context-free grammar configuration to use.
+                The CFG must in the Float semiring.
+        """
         if cfg.R is not Float:
             raise ValueError("cfg semiring must be Float")
         self.cfg = cfg  # cfg before prefix transform
@@ -47,9 +46,9 @@ class WCFG(Potential):
 
         Args:
             grammar (str): The string grammar specification to create the WCFG from.
-            to_bytes (bool, optional): Whether to convert the WCFG to bytes.
+            to_bytes (bool, optional): Whether to convert the WCFG terminals to indivudual bytes.
                 Defaults to True.
-            **kwargs: Additional arguments passed to the WCFG constructor.
+            **kwargs (dict): Additional arguments passed to the WCFG constructor.
 
         Returns:
             (WCFG): The created WCFG.
@@ -61,48 +60,60 @@ class WCFG(Potential):
 
     async def complete(self, context):
         """
-        Compute the log weight of the context under the WCFG.
+        Compute the log weight of `context` under the WCFG.
+
+        For example, if the WCFG accepts "cat" and "car" with weights $w_{cat}$ and $w_{car}$:\n
+        - `complete("c")` returns $-\\infty$ since this sequence is not accepted by the WCFG\n
+        - `complete("cat")` returns $\\log(w_{cat})$\n
+        - `complete("d")` returns $-\\infty$ since this sequence is not accepted by the WCFG
 
         Args:
-            context (list): The context to compute the weight for.
+            context (list): A sequence of tokens in the WCFG's alphabet.
 
         Returns:
-            (float): The log weight of the context under the WCFG.
+            (float): The log weight of `context` under the WCFG.
         """
         w = self.model([*context, EOS])
         return np.log(w) if w > 0 else float("-inf")
 
     async def prefix(self, context):
         """
-        Compute the log prefix weight of the context under the WCFG.
+        Compute the log prefix weight of `context` under the WCFG.
+
+        This corresponds to the log of the sum of the weights of all sequences with prefix `context`.
+
+        For example, if the WCFG accepts "cat" and "car" with weights $w_{cat}$ and $w_{car}$:\n
+        - `prefix("c")` returns $\\log(w_{cat} + w_{car})$\n
+        - `prefix("cat")` returns $\\log(w_{cat})$\n
+        - `prefix("d")` returns $-\\infty$ since the WCFG does not accept any sequences with prefix "d"
 
         Args:
-            context (list): The context to compute the prefix weight for.
+            context (list): A sequence of tokens in the WCFG's alphabet.
 
         Returns:
-            (float): The log prefix weight of the context under the WCFG.
+            (float): The log prefix weight of `context` under the WCFG.
         """
-        if not context:
-            return 0
         w = self.model(context)
         return np.log(w) if w > 0 else float("-inf")
 
     async def logw_next(self, context):
         """
-        Compute the log weights for the next tokens given the context.
+        Compute the next token log weights given `context`.
 
         Args:
-            context (list): The context to compute the next token weights for.
+            context (list): A sequence of tokens in the WCFG's alphabet.
 
         Returns:
-            (LazyWeights): The log weights for the next tokens given the context.
+            (LazyWeights): The log weights for the next tokens and EOS given `context`.
         """
         ws = self.model.next_token_weights(self.model.chart(context))
-        if context:
-            ws = ws.trim().normalize()
-        log_ws = np.array(
-            [np.log(ws[x]) if ws[x] > 0 else float("-inf") for x in self.decode_eos]
-        )
+        ws = ws.trim().normalize()
+
+        ws_array = np.array([ws[x] for x in self.vocab_eos])
+        mask = ws_array > 0
+        log_ws = np.full_like(ws_array, float("-inf"), dtype=np.float64)
+        log_ws[mask] = np.log(ws_array[mask])
+
         return self.make_lazy_weights(log_ws)
 
     def clear_cache(self):
@@ -116,39 +127,94 @@ class WCFG(Potential):
         return self.cfg._repr_html_()
 
     def spawn(self):
+        """Spawn a new WCFG."""
         return WCFG(self.cfg)
 
 
-class PCFG(WCFG):
-    def __init__(self, cfg, eos=None, **kwargs):
-        super().__init__(locally_normalize(cfg, **kwargs), eos=eos)
-
-
 class BoolCFG(WCFG):
+    """BoolCFG is a subclass of WCFG that represents a boolean context-free grammar."""
+
     @classmethod
     def from_lark(cls, lark_string, charset="core"):
+        """
+        Create a BoolCFG instance from a Lark grammar string.
+
+        The output grammar will be defined at the byte-level.
+
+        Args:
+            lark_string (str): The Lark grammar string to parse. See Lark documentation for correct syntax.
+            charset (str): The character set to use. Defaults to "core".
+                See `genlm-grammar` documentation for more details.
+
+        Returns:
+            (BoolCFG): An instance of BoolCFG created from the provided Lark grammar.
+        """
         byte_cfg = LarkStuff(lark_string).byte_cfg(charset=charset)
         return cls(byte_cfg)
 
-    async def prefix(self, context):
-        prefix_w = await super().prefix(context)
-        if prefix_w > float("-inf"):
-            return 0
-        return float("-inf")
-
     async def complete(self, context):
-        complete_w = await super().complete(context)
-        if complete_w > float("-inf"):
-            return 0
-        return float("-inf")
+        """
+        Checks whether the context is accepted by the CFG.
+
+        Args:
+            context (list): A sequence of tokens in the CFG's alphabet.
+
+        Returns:
+            (float): Log weight for whether `context` is accepted by the CFG.
+        """
+        w = self.model([*context, EOS])
+        return 0 if w else float("-inf")
+
+    async def prefix(self, context):
+        """
+        Checks whether `context` is accepted as a prefix by the CFG, i.e.,
+        whether there exists a completion to `context` that is accepted by the CFG.
+
+        Args:
+            context (list): A sequence of tokens in the CFG's alphabet.
+
+        Returns:
+            (float): Log weight for whether `context` is accepted as a prefix by the CFG.
+        """
+        w = self.model(context)
+        return 0 if w > 0 else float("-inf")
 
     async def logw_next(self, context):
-        logw_next = await super().logw_next(context)
-        return logw_next.spawn(
-            new_weights=np.where(
-                logw_next.weights > float("-inf"), 0, logw_next.weights
+        """
+        Compute the next token log weights given `context`.
+
+        Args:
+            context (list): A sequence of tokens in the CFG's alphabet.
+
+        Returns:
+            (LazyWeights): The log weights for the next tokens and EOS given `context`.
+        """
+        ws = self.model.next_token_weights(self.model.chart(context))
+        log_ws = np.array([0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos])
+        return self.make_lazy_weights(log_ws)
+
+    async def batch_logw_next(self, contexts):
+        """
+        Batch version of `logw_next`.
+
+        Args:
+            contexts (list): A list of sequences of tokens in the CFG's alphabet.
+
+        Returns:
+            (list): A list of log-weights for next token, one per context.
+        """
+        Ws = []
+        for context in contexts:
+            ws = self.model.next_token_weights(self.model.chart(context))
+            log_ws = np.array(
+                [0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos]
             )
-        )
+            Ws.append(self.make_lazy_weights(log_ws))
+        return Ws
+
+    def spawn(self):
+        """Spawn a new BoolCFG."""
+        return BoolCFG(self.cfg)
 
     def __repr__(self):
         return f"BoolCFG(cfg={self.cfg!r})"

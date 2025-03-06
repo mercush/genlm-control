@@ -1,8 +1,7 @@
 import pytest
 import numpy as np
 
-from genlm_control.potential.base import Potential, EOS
-from genlm_control.potential.mp import MPPotential
+from genlm_control.potential import Potential, MultiProcPotential
 
 
 class SimplePotential(Potential):
@@ -20,7 +19,7 @@ def V():
 
 @pytest.fixture
 def mp_potential(V):
-    return MPPotential(SimplePotential, (V,), num_workers=2)
+    return MultiProcPotential(SimplePotential, (V,), num_workers=2)
 
 
 @pytest.fixture
@@ -36,7 +35,9 @@ async def test_mp_score(mp_potential, regular_potential):
     regular_score = await regular_potential.score(seq)
     assert mp_score == regular_score == -1.0
 
-    seq_terminated = seq + [EOS]
+    assert mp_potential.eos == regular_potential.eos
+
+    seq_terminated = seq + [regular_potential.eos]
     mp_score = await mp_potential.score(seq_terminated)
     regular_score = await regular_potential.score(seq_terminated)
     assert mp_score == regular_score == -2.0
@@ -44,7 +45,7 @@ async def test_mp_score(mp_potential, regular_potential):
 
 @pytest.mark.asyncio
 async def test_mp_batch_score(mp_potential, regular_potential):
-    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", EOS]]
+    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", regular_potential.eos]]
 
     have = await mp_potential.batch_score(contexts)
     want = await regular_potential.batch_score(contexts)
@@ -87,36 +88,14 @@ async def test_mp_logw_next(mp_potential, regular_potential):
 
 @pytest.mark.asyncio
 async def test_mp_batch_logw_next(mp_potential, regular_potential):
-    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", EOS]]
+    contexts = [[b"a"], [b"a", b"b"], [b"a", b"b", regular_potential.eos]]
     haves = await mp_potential.batch_logw_next(contexts)
     wants = await regular_potential.batch_logw_next(contexts)
     for have, want in zip(haves, wants):
         np.testing.assert_array_equal(have.weights, want.weights)
 
 
-@pytest.mark.asyncio
-async def test_mp_logw_next_seq(mp_potential, regular_potential):
-    context = [b"b"]
-    extension = [b"c"]
-
-    have = await mp_potential.logw_next_seq(context, extension)
-    want = await regular_potential.logw_next_seq(context, extension)
-
-    np.testing.assert_array_equal(have, want)
-
-
-@pytest.mark.asyncio
-async def test_mp_batch_logw_next_seq(mp_potential, regular_potential):
-    context = [b"a"]
-    extensions = [[b"c", b"a"], [b"d"], [b"e", b"a", b"g"]]
-    haves = await mp_potential.batch_logw_next_seq(context, extensions)
-    wants = await regular_potential.batch_logw_next_seq(context, extensions)
-
-    for have, want in zip(haves, wants):
-        np.testing.assert_array_equal(have, want)
-
-
 def test_cleanup(mp_potential):
-    assert mp_potential.pool is not None
+    assert mp_potential.executor is not None
     mp_potential.__del__()
-    assert mp_potential.pool is None
+    assert mp_potential.executor is None

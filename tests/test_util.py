@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from genlm_control.util import LazyWeights, sample_categorical
+from genlm_control.util import LazyWeights
 
 
 def test_lazy_weights_basic():
@@ -48,48 +48,6 @@ def test_lazy_weights_normalize():
     np.testing.assert_allclose(np.exp(normalized_log.weights).sum(), 1.0)
 
 
-def test_lazy_weights_arithmetic():
-    w1 = np.array([1.0, 2.0, 3.0])
-    w2 = np.array([2.0, 1.0, 2.0])
-    encode = {"a": 0, "b": 1, "c": 2}
-    decode = ["a", "b", "c"]
-
-    lw1 = LazyWeights(w1, encode, decode, log=False)
-    lw2 = LazyWeights(w2, encode, decode, log=False)
-
-    result_add = lw1 + lw2
-    np.testing.assert_array_equal(result_add.weights, w1 + w2)
-
-    result_mul = lw1 * lw2
-    np.testing.assert_array_equal(result_mul.weights, w1 * w2)
-
-
-def test_lazy_weights_arithmetic_log():
-    # Create weights in normal space first
-    w1 = np.array([1.0, 2.0, 3.0])
-    w2 = np.array([2.0, 1.0, 2.0])
-    encode = {"a": 0, "b": 1, "c": 2}
-    decode = ["a", "b", "c"]
-
-    # Convert to log space
-    log_w1 = np.log(w1)
-    log_w2 = np.log(w2)
-
-    lw1 = LazyWeights(log_w1, encode, decode, log=True)
-    lw2 = LazyWeights(log_w2, encode, decode, log=True)
-
-    # Test multiplication (addition in log space)
-    result_mul = lw1 * lw2
-    assert result_mul.is_log
-    np.testing.assert_allclose(result_mul.weights, log_w1 + log_w2)
-
-    # Test addition (log(exp(x) + exp(y)) in log space)
-    result_add = lw1 + lw2
-    assert result_add.is_log
-    expected_add = np.log(np.exp(log_w1) + np.exp(log_w2))
-    np.testing.assert_allclose(result_add.weights, expected_add)
-
-
 def test_lazy_weights_exp_log():
     weights = np.array([1.0, 2.0, 3.0])
     encode = {"a": 0, "b": 1, "c": 2}
@@ -106,33 +64,17 @@ def test_lazy_weights_exp_log():
     np.testing.assert_allclose(lw_log.weights, np.log(weights))
 
 
-def test_sample_categorical():
-    pvals = np.array([0.2, 0.0, 0.3, 0.0, 0.5])
-    np.random.seed(42)  # For reproducibility
-
-    # Test multiple samples
-    samples = [sample_categorical(pvals) for _ in range(1000)]
-
-    # Check that we only get indices with non-zero probabilities
-    assert all(pvals[i] > 0 for i in samples)
-
-    # Check rough distribution (allowing for some random variation)
-    counts = np.bincount(samples)
-    expected = pvals * 1000
-    np.testing.assert_allclose(counts, expected, rtol=0.1)
-
-
 def test_lazy_weights_assertions():
     with pytest.raises(NotImplementedError):
         weights = np.array([1.0, 2.0])
         lw = LazyWeights(weights, {"a": 0, "b": 1}, ["a", "b"])
         np.array(lw)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         lw = LazyWeights(np.log(weights), {"a": 0, "b": 1}, ["a", "b"], log=True)
         lw.log()  # Can't take log of log weights
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         lw = LazyWeights(weights, {"a": 0, "b": 1}, ["a", "b"], log=False)
         lw.exp()  # Can't take exp of non-log weights
 

@@ -1,34 +1,81 @@
 import asyncio
 import numpy as np
 from abc import ABC, abstractmethod
-from arsenal.maths import logsumexp
 
-from genlm_control.constant import EOS
+from genlm_control.constant import EOS, EndOfSequence
 from genlm_control.util import LazyWeights
-from genlm_control.operators import PotentialOps
+from genlm_control.typing import TokenType, infer_vocabulary_type
+from genlm_control.potential.operators import PotentialOps
 from genlm_control.potential.testing import PotentialTests
 
 
 class Potential(ABC, PotentialOps, PotentialTests):
     """Abstract base class for potentials.
 
-    A Potential represents a weighted language over a vocabulary. Subclasses must minimally
-    implement methods to assess the weight of a sequence as a member of the language (`complete`) and
-    as a prefix of the language (`prefix`).
+    A Potential is a function that maps sequences of tokens in a vocabulary to non-negative real numbers (weights).
 
-    Args:
-        vocabulary (list): List of tokens that make up the vocabulary.
+    Potentials assign weights to sequences of tokens based on whether they are complete sequences of prefixes of complete sequences.
+
+    - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a complete sequence.
+    - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a prefix.
+
+    Potentials additionally implement a `logw_next` method:
+
+    - `logw_next`: Compute the next-token log weights of each token in the vocabulary and a special EOS (end-of-sequence) token given a context.
+
+    Subclasses must minimally implement `complete` and `prefix`. `logw_next` and batched versions of the above methods
+    come with default implementations, but may be overridden by subclasses for improved performance.
+
+    All Potentials must satisfy a set of properties which can be tested using [PotentialTests](testing.md#genlm_control.potential.testing.PotentialTests).
+
+    Attributes:
+        token_type (TokenType): The type of tokens in the vocabulary.
+        vocab (list): List of tokens making up the vocabulary.
+        eos (EndOfSequence): Special token to use as end-of-sequence.
+        vocab_eos (list): List of tokens in `vocab` and `eos`. `eos` is assumed to be the last token in `vocab_eos`.
+        lookup (dict): Mapping from tokens and `eos` to their indices in `vocab_eos`.
     """
 
-    def __init__(self, vocabulary):
-        self.decode = vocabulary
-        self.encode = {}
+    def __init__(self, vocabulary, token_type=None, eos=None):
+        """
+        Initialize the potential.
+
+        Args:
+            vocabulary (list): List of tokens that make up the vocabulary.
+            token_type (TokenType, optional): Optional TokenType of all elements of the vocabulary.
+                If None, will be inferred from vocabulary.
+            eos (EndOfSequence, optional): Special token to use as end-of-sequence. Defaults to `EOS`.
+                In general, this should not be set by users.
+
+        Raises:
+            ValueError: If vocabulary is empty.
+            TypeError: If vocabulary contains tokens which are not of `token_type`.
+        """
+        if not vocabulary:
+            raise ValueError("vocabulary cannot be empty")
+
+        if token_type is None:
+            token_type = infer_vocabulary_type(vocabulary)
+        elif not isinstance(token_type, TokenType):
+            raise ValueError(f"token_type must be a TokenType, got {token_type!r}.")
+
+        if not all(token_type.check(x) for x in vocabulary):
+            raise TypeError(f"Tokens in vocabulary must be of type {token_type}.")
+
+        if eos and not isinstance(eos, EndOfSequence):
+            raise ValueError(f"EOS must be an instance of EndOfSequence, got {eos!r}.")
+
+        self.eos = eos or EOS
+
+        self.token_type = token_type
+        self.vocab = vocabulary
+        self.vocab_eos = self.vocab + [self.eos]
+        self.lookup = {}
         for i, x in enumerate(vocabulary):
-            if x in self.encode:
+            if x in self.lookup:
                 raise ValueError(f"Duplicate token {x!r} found in vocabulary")
-            self.encode[x] = i
-        self.decode_eos = self.decode + [EOS]
-        self.encode_eos = {**self.encode, **{EOS: len(self.decode)}}
+            self.lookup[x] = i
+        self.lookup[self.eos] = len(self.vocab)
 
     ####################
     # Instance methods #
@@ -39,7 +86,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         """Assess the weight of `context` as a member of the language.
 
         Args:
-            context (list): Sequence of tokens to score.
+            context (list): Sequence of tokens.
 
         Returns:
             (float): Log weight of the context under the language.
@@ -51,7 +98,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         """Assess the weight of `context` as a prefix of the language.
 
         Args:
-            context (list): Sequence of tokens to score.
+            context (list): Sequence of tokens.
 
         Returns:
             (float): Log weight of the context as a prefix of the language.
@@ -61,10 +108,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def score(self, context):
         """Assess the weight of `context` based on EOS-termination.
 
-        Dispatches to `complete` if `context` ends with `EOS`, otherwise to `prefix`.
+        This is a convenience method which dispatches to `complete` if `context` ends with `self.eos`, otherwise to `prefix`.
 
         Args:
-            context (list): Sequence of tokens to score.
+            context (list): Sequence of tokens.
 
         Returns:
             (float): Log weight of the context, either as a prefix or complete sequence.
@@ -72,15 +119,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
         return (await self.batch_score([context]))[0]
 
     async def logw_next(self, context):
-        """Compute the weights each token in the vocabulary and the special EOS token given `context`.
-
-        The log weight of a token x is computed as:
-        $$
-        w(x \mid \text{context}) = \text{score}(\text{context} + x) - \text{prefix}(\text{context})
-        $$
+        """Compute the next-token weights of each token in `self.vocab_eos` given `context`.
 
         Args:
-            context (list): Sequence of tokens to condition on.
+            context (list): Sequence of tokens.
 
         Returns:
             (LazyWeights): Weights of each token in the vocabulary and EOS.
@@ -90,24 +132,10 @@ class Potential(ABC, PotentialOps, PotentialTests):
         if ctx_log_w == float("-inf"):
             raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
 
-        scores = await self.batch_score([[*context, x] for x in self.decode_eos])
+        scores = await self.batch_score([[*context, x] for x in self.vocab_eos])
         logws = scores - ctx_log_w
 
         return self.make_lazy_weights(logws)
-
-    async def logw_next_seq(self, context, extension):
-        """Assess the weight of `extension` given `context`.
-
-        `extension` may optionally include the special EOS token at the end.
-
-        Args:
-            context (list): Sequence of tokens to condition on.
-            extension (list): Sequence of tokens to score.
-
-        Returns:
-            (LazyWeights): Log weight of `extension` given `context`.
-        """
-        return (await self.batch_logw_next_seq(context, [extension]))[0]
 
     ###################
     # Batched methods #
@@ -167,7 +195,8 @@ class Potential(ABC, PotentialOps, PotentialTests):
         complete_indices, prefix_indices = [], []
 
         for i, context in enumerate(contexts):
-            if context and context[-1] is EOS:
+            # We want == here instead of `is`.
+            if context and context[-1] == self.eos:
                 complete.append(context[:-1])
                 complete_indices.append(i)
             else:
@@ -190,8 +219,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def batch_logw_next(self, contexts):
         """Batched equivalent to `logw_next`.
 
-        Computes the log weights for each token in the vocabulary and EOS
-        given each context in the batch.
+        Computes the next-token weights of each token in `self.vocab_eos` given each context in the batch.
 
         Args:
             contexts (list): List of sequences of tokens.
@@ -205,60 +233,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         if not contexts:
             raise ValueError("Contexts must be non-empty.")
 
-        num_contexts = len(contexts)
-        vocab_size = len(self.decode)
-
-        extended_contexts = [[*context, x] for context in contexts for x in self.decode]
-
-        complete_scores, all_prefix_scores = await asyncio.gather(
-            self.batch_complete(contexts),
-            self.batch_prefix(contexts + extended_contexts),
-        )
-
-        base_scores = all_prefix_scores[:num_contexts]
-        extension_scores = all_prefix_scores[num_contexts:]
-
-        batch_logws = []
-        for i in range(num_contexts):
-            base_score = base_scores[i]
-            if base_score == float("-inf"):
-                raise ValueError(
-                    f"Context {contexts[i]!r} has weight zero under `prefix`."
-                )
-
-            logws = np.zeros(len(self.decode_eos))
-            start = i * vocab_size
-            logws[:-1] = extension_scores[start : start + vocab_size] - base_score
-            logws[-1] = complete_scores[i] - base_score
-
-            batch_logws.append(self.make_lazy_weights(logws))
-
-        return batch_logws
-
-    async def batch_logw_next_seq(self, context, extensions):
-        """Batched equivalent to `logw_next_seq`.
-
-        Args:
-            context (list): Sequence of tokens to condition on.
-            extensions (list): List of sequences of tokens to score.
-
-        Returns:
-            (np.array): Array of log weights for each extension.
-
-        Raises:
-            ValueError: If context has zero weight (log weight of -inf) under `prefix`.
-        """
-        if not extensions:
-            raise ValueError("Extensions must be non-empty.")
-
-        prefix = await self.prefix(context)
-        if prefix == float("-inf"):
-            raise ValueError(f"Context {context!r} has weight zero under `prefix`.")
-
-        scores = await self.batch_score(
-            [[*context, *extension] for extension in extensions]
-        )
-        return scores - prefix
+        return await asyncio.gather(*[self.logw_next(context) for context in contexts])
 
     #############
     # Utilities #
@@ -272,68 +247,38 @@ class Potential(ABC, PotentialOps, PotentialTests):
             log (bool, optional): Whether the weights are in log space. Defaults to True.
 
         Returns:
-            (LazyWeights): LazyWeights object.
+            (LazyWeights): LazyWeights object defined over `self.vocab_eos`.
         """
         return LazyWeights(
-            weights=weights, encode=self.encode_eos, decode=self.decode_eos, log=log
+            weights=weights, encode=self.lookup, decode=self.vocab_eos, log=log
         )
+
+    def alloc_logws(self, default=float("-inf")):
+        """Allocate a new array of log weights for the potential's vocabulary and EOS.
+
+        Args:
+            default (float, optional): Default log weight. Defaults to -inf.
+
+        Returns:
+            (np.array): Array of length `len(self.vocab_eos)` filled with `default`.
+        """
+        return np.full((len(self.vocab_eos),), default)
 
     def spawn(self):
         """
         Spawn a fresh instance of the potential.
 
         This method is not required by default, but may be implemented by subclasses
-        to support CPU-parallelism using multiprocessing.
+        to support CPU-parallelism using (`MultiProcPotential`)[genlm_control.potential.multi_proc.MultiProcPotential].
         """
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."
         )
 
-    async def sample(self, context=None, max_tokens=float("inf"), n_samples=1):
-        """Generate properly weighted samples from the potential.
-
-        Args:
-            context (list, optional): Initial context. Defaults to None.
-            max_tokens (int, optional): Maximum number of tokens to generate. Defaults to float("inf").
-            n_samples (int, optional): Number of samples to generate. Defaults to 1.
-
-        Returns:
-            tuple[list[list], np.ndarray]: Tuple of (sequences, log weights), where sequences is a list of
-                token sequences and log weights is an array of corresponding log weights.
-
-        Raises:
-            ValueError: If n_samples < 1 or max_tokens < 1
+    async def cleanup(self):
         """
-        if n_samples < 1:
-            raise ValueError("n_samples must be at least 1")
-        if max_tokens < 1:
-            raise ValueError("max_tokens must be at least 1")
+        Cleanup the potential.
 
-        context = [] if context is None else list(context)
-        contexts = [context.copy() for _ in range(n_samples)]
-        log_ws = np.zeros(n_samples, dtype=np.float64)
-        active = np.ones(n_samples, dtype=bool)
-
-        while np.any(active):
-            active_idxs = np.where(active)[0]
-            logw_nexts = await self.batch_logw_next([contexts[i] for i in active_idxs])
-
-            for i, logw_next in enumerate(logw_nexts):
-                idx = active_idxs[i]
-                W = logw_next.weights
-                Z = logsumexp(W)
-                p_next = np.exp(W - Z)
-
-                # Handle numerical precision issues
-                p_next = p_next / np.sum(p_next)
-
-                next_token = np.random.choice(self.decode_eos, p=p_next)
-                contexts[idx].append(next_token)
-                log_ws[idx] += Z
-
-                print(contexts[idx], log_ws[idx])
-
-                if next_token is EOS or len(contexts[idx]) >= max_tokens:
-                    active[idx] = False
-
-        return contexts, log_ws
+        This method may be implemented by subclasses to release resources.
+        """
+        pass

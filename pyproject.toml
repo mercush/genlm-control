@@ -9,12 +9,13 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
+    { name = "Ben LeBrun", email = "benlebrun1@gmail.com" },
     { name = "The GenLM Team" },
 ]
 dependencies = [
-    "genlm_grammar @ git+https://github.com/chi-collective/genlm-grammar",
+    "genlm_grammar @ git+https://github.com/chi-collective/genlm-grammar.git",
     "genlm-backend>=0.0.1",
-    #"hfppl @ git+https://github.com/probcomp/hfppl",
+    "hfppl @ git+https://github.com/probcomp/hfppl.git",
     "arsenal @ git+https://github.com/timvieira/arsenal",
     "IPython",
     "numpy",
@@ -27,6 +28,7 @@ test = [
     "pytest",
     "pytest-benchmark",
     "pytest-asyncio",
+    "hypothesis",
 ]
 docs = [
     "mkdocs",
@@ -36,3 +38,13 @@ docs = [
     "mkdocs-literate-nav",
     "mkdocs-section-index",
 ]
+
+[tool.setuptools]
+packages = [
+    "genlm_control",
+    "genlm_control.experimental",
+    "genlm_control.potential",
+    "genlm_control.potential.built_in",
+    "genlm_control.sampler",
+]
+package-data = { "genlm_control" = ["html/*"] }

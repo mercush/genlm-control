@@ -1,6 +1,5 @@
 import asyncio
 import numpy as np
-from genlm_control.constant import EOS
 
 
 class PotentialTests:
@@ -12,11 +11,12 @@ class PotentialTests:
     - logw_next consistency: Verifies that token-level log weights are consistent with
       prefix and complete scores.
     - Autoregressive factorization: Validates that complete scores factor correctly as
-      a sum of log token weights.
+      a sum of log token weights (with an additional correction term corresponding to the
+      prefix weight of the empty sequence).
     - Batch consistency: Ensures batch operations produce identical results to
       their non-batch counterparts.
 
-    All Potential instances inherit from this class to gain access to these
+    All Potential instances inherit from this class and thus automatically gain access to these
     testing utilities.
     """
 
@@ -31,32 +31,40 @@ class PotentialTests:
     }
 
     async def assert_logw_next_consistency(
-        self, context, rtol=1e-3, atol=1e-5, top=None, verbosity=0
+        self, context, rtol=1e-3, atol=1e-5, top=None, verbosity=0, method_args=()
     ):
         """
-        Assert that logw_next is consistent with prefix and complete.
+        Assert that `logw_next` is consistent with `prefix` and `complete`.
 
-        For context $x_1, \ldots, x_n$, this checks (in log space) whether:
+        For a `context` of tokens $x_1, \\ldots, x_{n-1}$, this checks (in log space) whether:
+
         $$
-        \\texttt{logw_next}(x_i \mid x_{<i}) = \\texttt{score}(x_{1:i}) - \\texttt{prefix}(x_{<i})
+        \\textsf{logw\_next}(x_n | x_1, \\ldots, x_{n-1}) = \\textsf{score}(x_1, \\ldots, x_n) - \\textsf{prefix}(x_1, \\ldots, x_{n-1})
         $$
+        for $x_n \\in \\textsf{vocab_eos}$, i.e., the potential's vocabulary and end-of-sequence token.
 
         Args:
-            context (list[bytes]): Context to test.
+            context (list): Context to test.
             rtol (float): Relative tolerance for floating point comparison.
             atol (float): Absolute tolerance for floating point comparison.
-            top (int): Top-k tokens to test.
+            top (int):If specified, only test the top-k tokens by log weight. If None, test all tokens.
             verbosity (int): Verbosity level.
+            method_args (tuple): Positional arguments to pass to `logw_next`, `prefix`, and `batch_score`.
+                Defaults to empty tuple.
 
         Raises:
-            AssertionError: If the logw_next is not consistent with prefix and complete.
+            AssertionError: If `logw_next` is not consistent with `prefix` and `complete`.
         """
-        top_logw_next = (await self.logw_next(context)).materialize(top=top)
+        top_logw_next = (await self.logw_next(context, *method_args)).materialize(
+            top=top
+        )
         tokens = list(top_logw_next.keys())
         extended = [[*context, x] for x in tokens]
 
-        context_w = await self.prefix(context)
-        extended_ws = await self.batch_score(extended)
+        context_w = await self.prefix(context, *method_args)
+        extended_ws = np.array(
+            await asyncio.gather(*[self.score(e, *method_args) for e in extended])
+        )
 
         wants = np.array([top_logw_next[x] for x in tokens])
         haves = extended_ws - context_w
@@ -86,40 +94,48 @@ class PotentialTests:
                 )
             raise AssertionError(error_msg)
 
-    async def assert_autoreg_fact(self, context, rtol=1e-3, atol=1e-5, verbosity=0):
+    async def assert_autoreg_fact(
+        self, context, rtol=1e-3, atol=1e-5, verbosity=0, method_args=()
+    ):
         """
-        Assert that complete factors as an autoregressive sum of logw_nexts.
+        Assert that `complete` factors as an autoregressive sum of `logw_next`s.
 
-        For context $x_1, \\ldots, x_n$, this checks (in log space) whether:
+        For a `context` of tokens $x_1, \\ldots, x_n$, this checks (in log space) whether:
+
         $$
-        \\texttt{complete}(x_1, \\ldots, x_n) = \\texttt{logw_next}(x_{1:n})[EOS] + \\sum_{i=1}^n \\texttt{logw_next}(x_{<i})[x_i]
+        \\textsf{complete}(x_1, \\ldots, x_n) - \\textsf{prefix}(\\epsilon) = \\textsf{logw\_next}(\\textsf{eos} \\mid x_1, \\ldots, x_{n}) + \\sum_{i=1}^{n} \\textsf{logw_next}(x_i \\mid x_1, \\ldots, x_{i-1})
         $$
+        where $\\epsilon$ is the empty sequence.
 
         Args:
-            context (list[bytes]): Context to test.
+            context (list): Context to test.
             rtol (float): Relative tolerance for floating point comparison.
             atol (float): Absolute tolerance for floating point comparison.
             verbosity (int): Verbosity level.
+            method_args (tuple): Positional arguments to pass to `complete`, `prefix`, and `logw_next`.
+                Defaults to empty tuple.
 
         Raises:
             AssertionError: If the autoregressive factorization is not satisfied.
         """
-        want = await self.complete(context)
+        want = (await self.complete(context, *method_args)) - (
+            await self.prefix([], *method_args)
+        )
 
         logw_next_results = await asyncio.gather(
-            *[self.logw_next(context[:i]) for i in range(len(context))],
-            self.logw_next(context),
+            *[self.logw_next(context[:i], *method_args) for i in range(len(context))],
+            self.logw_next(context, *method_args),
         )
 
         have = (
             sum(logw_next_results[i][context[i]] for i in range(len(context)))
-            + logw_next_results[-1][EOS]
+            + logw_next_results[-1][self.eos]
         )
 
         abs_diff, rel_diff = self._compute_diff(want, have)
         if abs_diff > atol or rel_diff > rtol:
             error_msg = (
-                f"{self.colors['red']}Factorization not satisfied for context {context}:{self.colors['reset']}\n"
+                f"{self.colors['red']}Factorization not satisfied for context {context!r}:{self.colors['reset']}\n"
                 + self._format_diff(want, have, abs_diff, rel_diff, atol, rtol)
             )
             raise AssertionError(error_msg)
@@ -130,27 +146,39 @@ class PotentialTests:
             )
             print(self._format_diff(want, have, abs_diff, rel_diff, atol, rtol))
 
-    async def assert_batch_consistency(self, contexts, extensions=None, verbosity=0):
+    async def assert_batch_consistency(
+        self,
+        contexts,
+        rtol=1e-3,
+        atol=1e-5,
+        verbosity=0,
+        batch_method_args=(),
+        method_args=(),
+    ):
         """
         Assert that batch results are equal to non-batch results.
 
         Args:
-            contexts (list[list[bytes]]): Contexts to test.
-            extensions (list[bytes], optional): Extensions to test logw_next_seq methods.
-                Defaults to None, in which case the logw_next_seq methods are not tested.
+            contexts (list[list]): Contexts to test.
+            rtol (float): Relative tolerance for floating point comparison.
+            atol (float): Absolute tolerance for floating point comparison.
             verbosity (int): Verbosity level.
+            batch_method_args (tuple): Positional arguments to pass to batch methods.
+                Defaults to empty tuple.
+            method_args (tuple): Positional arguments to pass to underlying potential methods.
+                Defaults to empty tuple.
 
         Raises:
             AssertionError: If the batch results are not equal to the non-batch results.
         """
-        batch_logw_nexts = await self.batch_logw_next(contexts)
-        batch_scores = await self.batch_score(contexts)
+        batch_logw_nexts = await self.batch_logw_next(contexts, *batch_method_args)
+        batch_scores = await self.batch_score(contexts, *batch_method_args)
 
         for i, context in enumerate(contexts):
-            logw_next = await self.logw_next(context)
+            logw_next = await self.logw_next(context, *method_args)
             try:
-                np.testing.assert_array_equal(
-                    batch_logw_nexts[i].weights, logw_next.weights
+                np.testing.assert_allclose(
+                    batch_logw_nexts[i].weights, logw_next.weights, rtol=rtol, atol=atol
                 )
                 if verbosity > 0:
                     print(
@@ -167,8 +195,9 @@ class PotentialTests:
                     + f"{self.colors['red']}Batched:     {batch_logw_nexts[i].weights}{self.colors['reset']}"
                 )
 
-            score = await self.score(context)
-            if batch_scores[i] != score:
+            score = await self.score(context, *method_args)
+            abs_diff, rel_diff = self._compute_diff(score, batch_scores[i])
+            if abs_diff > atol or rel_diff > rtol:
                 raise AssertionError(
                     f"{self.colors['red']}Batch score mismatch for context {context}:{self.colors['reset']}\n"
                     + f"{self.colors['green']}Non-batched: {score}\n"
@@ -182,27 +211,6 @@ class PotentialTests:
                     f"{self.colors['green']}Non-batched: {score}\n"
                     + f"{self.colors['green']}Batched:     {batch_scores[i]}{self.colors['reset']}\n"
                 )
-
-            if extensions:
-                batch_logw_next_seqs = await self.batch_logw_next_seq(
-                    context, extensions
-                )
-                for j, extension in enumerate(extensions):
-                    logw_next_seq = await self.logw_next_seq(context, extension)
-                    if batch_logw_next_seqs[j] != logw_next_seq:
-                        raise AssertionError(
-                            f"{self.colors['red']}Batch logw_next_seq mismatch for context {context} and extension {extension}:{self.colors['reset']}\n"
-                            + f"{self.colors['green']}Non-batched: {logw_next_seq}{self.colors['reset']}\n"
-                            + f"{self.colors['red']}Batched:    {batch_logw_next_seqs[j]}{self.colors['reset']}"
-                        )
-                    elif verbosity > 0:
-                        print(
-                            f"{self.colors['green']}Batch logw_next_seq consistency satisfied for context {context} and extension {extension}:{self.colors['reset']}"
-                        )
-                        print(
-                            f"{self.colors['green']}Non-batched: {logw_next_seq}\n"
-                            + f"{self.colors['green']}Batched:    {batch_logw_next_seqs[j]}{self.colors['reset']}\n"
-                        )
 
     def _compute_diff(self, want, have):
         is_inf = want == float("-inf") and have == float("-inf")

@@ -1,4 +1,4 @@
-site_name: GenLM Backend
+site_name: GenLM Control
 theme:
   name: material
   palette:
@@ -17,8 +17,13 @@ theme:
 
 plugins:
   - search
-  - search
-  - mkdocstrings
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            members_order: source
+            members_order_submodules: source
+            group_by_category: false
   - gen-files:
       scripts:
       - docs/gen_reference_page.py
@@ -29,6 +34,10 @@ plugins:
 nav:
   - Home: index.md
   - Code Reference: reference/
+  - Core Concepts:
+    - Potentials: potentials.md
+    - Samplers: samplers.md
+  - Performance: performance.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -38,5 +47,13 @@ markdown_extensions:
   - pymdownx.superfences
   - admonition
   - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
 
-repo_url: https://github.com/probcomp/genlm-backend
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+repo_url: https://github.com/ChiSym/genlm-control

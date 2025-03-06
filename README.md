@@ -1,6 +1,14 @@
-[![Docs](https://github.com/chi-collective/genlm-control/actions/workflows/docs.yml/badge.svg)](https://chi-collective.github.io/genlm-control/)
+[![Docs](https://github.com/chisym/genlm-control/actions/workflows/docs.yml/badge.svg)](https://chisym.github.io/genlm-control/)
+[![Tests](https://github.com/chisym/genlm-control/actions/workflows/pytest.yml/badge.svg)](https://chisym.github.io/genlm-control/)
 
 # GenLM Control
+
+GenLM Control is a library for controlled generation with programmable constraints. It leverages sequential Monte Carlo (SMC) methods to efficiently generate text that satisfies constraints or preferences encoded by arbitrary potential functions.
+
+ See the [docs](https://chisym.github.io/genlm-control/) for details and [examples](https://github.com/chisym/genlm-control/tree/main/examples/getting_started.py) for usage.
+
+> **⚠️ Warning:** This library is currently in active development. Please report any bugs in [the issue tracker](https://github.com/chisym/genlm-control/issues).
+
 
 ## Quick Start
 
@@ -8,7 +16,7 @@
 
 Clone the repository:
 ```bash
-git clone git@github.com:chi-collective/genlm-control.git
+git clone git@github.com:ChiSym/genlm-control.git
 cd genlm-control
 ```
 and install with pip:
