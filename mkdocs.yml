@@ -1,4 +1,4 @@
-site_name: GenLM Backend
+site_name: GenLM Control
 theme:
   name: material
   palette:
