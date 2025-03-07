@@ -83,7 +83,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
     @abstractmethod
     async def complete(self, context):
-        """Assess the weight of `context` as a member of the language.
+        """Assess the weight of `context` as a complete sequence.
 
         Args:
             context (list): Sequence of tokens.
@@ -95,13 +95,13 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
     @abstractmethod
     async def prefix(self, context):
-        """Assess the weight of `context` as a prefix of the language.
+        """Assess the weight of `context` as a prefix.
 
         Args:
             context (list): Sequence of tokens.
 
         Returns:
-            (float): Log weight of the context as a prefix of the language.
+            (float): Log weight of the context as a prefix.
         """
         pass
 
@@ -144,7 +144,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def batch_complete(self, contexts):
         """Batched equivalent to `complete`.
 
-        Assess the weight of each context as a complete sequence of the language.
+        Assess the weight of each context as a complete sequence.
 
         Args:
             contexts (list): List of sequences of tokens.
@@ -162,7 +162,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     async def batch_prefix(self, contexts):
         """Batched equivalent to `prefix`.
 
-        Assess the weight of each context as a prefix of the language.
+        Assess the weight of each context as a prefix.
 
         Args:
             contexts (list): List of sequences of tokens.
