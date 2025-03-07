@@ -14,7 +14,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
 
     A Potential is a function that maps sequences of tokens in a vocabulary to non-negative real numbers (weights).
 
-    Potentials assign weights to sequences of tokens based on whether they are complete sequences of prefixes of complete sequences.
+    Potentials assign weights to sequences of tokens based on whether they are complete sequences or prefixes of complete sequences.
 
     - `complete`: Assess the log weight of a sequence of tokens in the vocabulary as a complete sequence.
     - `prefix`: Assess the log weight of a sequence of tokens in the vocabulary as a prefix.
