@@ -1,10 +1,20 @@
 import numpy as np
-from genlm_grammar import CFG, Earley, Float
+from genlm_grammar import CFG, Earley, Float, Boolean
 from genlm_grammar.lark_interface import LarkStuff
 from genlm_grammar.cfglm import _gen_nt
 
 from genlm_control.constant import EOS
 from genlm_control.potential.base import Potential
+
+
+def _add_eos(cfg, eos):
+    S = _gen_nt("<START>")
+    cfg_eos = cfg.spawn(S=S)
+    cfg_eos.V.add(eos)
+    cfg_eos.add(cfg.R.one, S, cfg.S, eos)
+    for r in cfg:
+        cfg_eos.add(r.w, r.head, *r.body)
+    return cfg_eos
 
 
 class WCFG(Potential):
@@ -23,22 +33,14 @@ class WCFG(Potential):
             cfg (genlm_grammar.CFG): The context-free grammar configuration to use.
                 The CFG must in the Float semiring.
         """
+        # TODO: convert to LogSemiring to handle underflow
         if cfg.R is not Float:
             raise ValueError("cfg semiring must be Float")
         self.cfg = cfg  # cfg before prefix transform
-        self.cfg_eos = self._add_eos(cfg, EOS)  # augmented with eos
+        self.cfg_eos = _add_eos(cfg, EOS)  # augmented with eos
         self.model = Earley(self.cfg_eos.prefix_grammar)
         super().__init__(vocabulary=list(cfg.V))
 
-    @staticmethod
-    def _add_eos(cfg, eos):
-        S = _gen_nt("<START>")
-        cfg_eos = cfg.spawn(S=S)
-        cfg_eos.V.add(eos)
-        cfg_eos.add(cfg.R.one, S, cfg.S, eos)
-        for r in cfg:
-            cfg_eos.add(r.w, r.head, *r.body)
-        return cfg_eos
 
     @classmethod
     def from_string(cls, grammar, to_bytes=True, **kwargs):
@@ -131,8 +133,16 @@ class WCFG(Potential):
         return WCFG(self.cfg)
 
 
-class BoolCFG(WCFG):
-    """BoolCFG is a subclass of WCFG that represents a boolean context-free grammar."""
+class BoolCFG(Potential):
+    """BoolCFG represents a boolean context-free grammar."""
+
+    def __init__(self, cfg):
+        if cfg.R != Boolean:
+            cfg = cfg.map_values(lambda x: Boolean(x > 0), Boolean)
+        self.cfg = cfg  # cfg before prefix transform
+        self.cfg_eos = _add_eos(cfg, EOS)  # augmented with eos
+        self.model = Earley(self.cfg_eos.prefix_grammar)
+        super().__init__(vocabulary=list(cfg.V))
 
     @classmethod
     def from_lark(cls, lark_string, charset="core"):
@@ -163,7 +173,7 @@ class BoolCFG(WCFG):
             (float): Log weight for whether `context` is accepted by the CFG.
         """
         w = self.model([*context, EOS])
-        return 0 if w else float("-inf")
+        return 0 if w.score else float("-inf")
 
     async def prefix(self, context):
         """
@@ -176,8 +186,10 @@ class BoolCFG(WCFG):
         Returns:
             (float): Log weight for whether `context` is accepted as a prefix by the CFG.
         """
+        if not context: # FIX: this is a hack to handle the empty string because genlm-grammar doesn't support it
+            return 0
         w = self.model(context)
-        return 0 if w > 0 else float("-inf")
+        return 0 if w.score else float("-inf")
 
     async def logw_next(self, context):
         """
@@ -190,7 +202,7 @@ class BoolCFG(WCFG):
             (LazyWeights): The log weights for the next tokens and EOS given `context`.
         """
         ws = self.model.next_token_weights(self.model.chart(context))
-        log_ws = np.array([0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos])
+        log_ws = np.array([0 if ws[x].score else float("-inf") for x in self.vocab_eos])
         return self.make_lazy_weights(log_ws)
 
     async def batch_logw_next(self, contexts):
@@ -207,7 +219,7 @@ class BoolCFG(WCFG):
         for context in contexts:
             ws = self.model.next_token_weights(self.model.chart(context))
             log_ws = np.array(
-                [0 if ws[x] > 0 else float("-inf") for x in self.vocab_eos]
+                [0 if ws[x].score else float("-inf") for x in self.vocab_eos]
             )
             Ws.append(self.make_lazy_weights(log_ws))
         return Ws
