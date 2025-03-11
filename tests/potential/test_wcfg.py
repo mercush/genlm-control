@@ -112,6 +112,9 @@ async def test_wcfg_from_string():
     log_weight = await pot.complete(b"a")
     assert log_weight == float("-inf")
 
+    pot_spawned = pot.spawn()
+    assert pot_spawned.cfg == pot.cfg
+
 
 @pytest.mark.asyncio
 async def test_bcfg_from_lark():
@@ -130,3 +133,6 @@ async def test_bcfg_from_lark():
 
     log_weight = await pot.complete(b"a")
     assert log_weight == float("-inf")
+
+    pot_spawned = pot.spawn()
+    assert pot_spawned.cfg == pot.cfg
