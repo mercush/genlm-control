@@ -41,7 +41,6 @@ class WCFG(Potential):
         self.model = Earley(self.cfg_eos.prefix_grammar)
         super().__init__(vocabulary=list(cfg.V))
 
-
     @classmethod
     def from_string(cls, grammar, to_bytes=True, **kwargs):
         """Create a WCFG from a string.
@@ -186,7 +185,7 @@ class BoolCFG(Potential):
         Returns:
             (float): Log weight for whether `context` is accepted as a prefix by the CFG.
         """
-        if not context: # FIX: this is a hack to handle the empty string because genlm-grammar doesn't support it
+        if not context:  # FIX: this is a hack to handle the empty string because genlm-grammar doesn't support it
             return 0
         w = self.model(context)
         return 0 if w.score else float("-inf")
