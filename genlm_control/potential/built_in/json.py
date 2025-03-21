@@ -64,9 +64,17 @@ class JsonSchema(Potential):
         # a valid complete document.
         incomplete_utf8_at_end = context and context[-1] >= 128
         if incomplete_utf8_at_end:
+            bytes_dropped = 0
             context = list(context)
             while context and context[-1] >= 128:
                 context.pop()
+                bytes_dropped += 1
+                # UTF-8 characters are at most 4 bytes, so an
+                # incomplete unicode character can be at most 3
+                # bytes. If we've dropped more than that this is
+                # always invalid UTF-8.
+                if bytes_dropped > 3:
+                    raise ValueError("Invalid UTF-8")
 
         context = bytes(context)
 

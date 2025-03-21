@@ -42,6 +42,12 @@ async def test_consistency_properties(schema, context):
     await potential.assert_autoreg_fact(context)
 
 
+@pytest.mark.asyncio
+async def test_will_error_on_impossible_unicode_prefixes():
+    potential = JsonSchema({"type": "object"})
+    assert await potential.prefix([190] * 5) == -float("inf")
+
+
 @st.composite
 def json_schema(draw):
     type = draw(
