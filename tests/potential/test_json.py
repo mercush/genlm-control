@@ -135,6 +135,24 @@ def json_schema_potential_problem(draw):
         prefix=b'"0\xc2\x80\xc2',
     )
 )
+@example(
+    JSONSChemaPotentialProblem(
+        schema={
+            "type": "string",
+        },
+        document=b'"000000000\\u001f\xc2\x80\xc2\x80"',
+        prefix=b'"000000000\\u001f\xc2\x80\xc2\x80',
+    ),
+)
+@example(
+    JSONSChemaPotentialProblem(
+        schema={
+            "type": "string",
+        },
+        document=b'"000\\u001f\xc2\x80\xc2\x80\xc2\x80"',
+        prefix=b'"000\\u001f\xc2\x80\xc2\x80\xc2',
+    ),
+)
 @given(json_schema_potential_problem())
 @settings(max_examples=200)
 async def test_always_returns_correctly_on_valid_documents(problem):

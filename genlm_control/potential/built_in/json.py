@@ -48,6 +48,24 @@ class JustOneBlockIterable:
         self.read_past_first_block = True
 
 
+UTF8_START_BYTE_MASKS = [
+    (0b00000000, 0b10000000),
+    (0b11000000, 0b11100000),
+    (0b11100000, 0b11110000),
+    (0b11110000, 0b11111000),
+]
+
+
+def is_utf8_start_byte(n: int) -> bool:
+    """Checks if this is a byte that can appear at the
+    start of a UTF-8 character."""
+    assert 0 <= n < 256
+    for prefix, mask in UTF8_START_BYTE_MASKS:
+        if n & mask == prefix:
+            return True
+    return False
+
+
 class JsonSchema(Potential):
     def __init__(self, schema):
         super().__init__(
@@ -57,29 +75,26 @@ class JsonSchema(Potential):
         self.validator = LazyCompatibleValidator(self.schema)
 
     def __check_context(self, context):
+        context = bytes(context)
+
         # JSON documents have to be valid UTF-8, but we might be
         # in the middle of generating a UTF-8 character. If so, we
         # only consider the prefix that is valid UTF-8, but need
         # to signal at the end that this is a valid prefix and not
         # a valid complete document.
-        incomplete_utf8_at_end = context and context[-1] >= 128
-        if incomplete_utf8_at_end:
-            bytes_dropped = 0
-            context = list(context)
-            while context and context[-1] >= 128:
-                context.pop()
-                bytes_dropped += 1
-                # UTF-8 characters are at most 4 bytes, so an
-                # incomplete unicode character can be at most 3
-                # bytes. If we've dropped more than that this is
-                # always invalid UTF-8.
-                if bytes_dropped > 3:
-                    raise ValueError("Invalid UTF-8")
-
-        context = bytes(context)
-
+        incomplete_utf8_at_end = False
         try:
-            context.decode("utf-8")
+            try:
+                context.decode("utf-8")
+            except UnicodeDecodeError:
+                for i in range(1, min(5, len(context))):
+                    if is_utf8_start_byte(context[-i]):
+                        context = context[:-i]
+                        context.decode("utf-8")
+                        incomplete_utf8_at_end = True
+                        break
+                else:
+                    raise
         except UnicodeDecodeError:
             raise ValueError("Invalid UTF-8")
 
