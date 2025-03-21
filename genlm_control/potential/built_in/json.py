@@ -65,11 +65,8 @@ class JsonSchema(Potential):
         incomplete_utf8_at_end = context and context[-1] >= 128
         if incomplete_utf8_at_end:
             context = list(context)
-            for _ in range(2):
-                if context and context[-1] >= 128:
-                    context.pop()
-                else:
-                    break
+            while context and context[-1] >= 128:
+                context.pop()
 
         context = bytes(context)
 
