@@ -21,6 +21,10 @@ jobs:
           python-version: 3.11.5
           cache: 'pip'
 
+      - name: Clear pip cache
+        run: |
+          pip cache purge
+
       - name: Run Tests
         run: |
           python -m venv venv

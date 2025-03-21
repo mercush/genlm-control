@@ -21,14 +21,18 @@ dependencies = [
     "numpy",
     "torch",
     "python-lsp-server",
+    "json-stream",
 ]
 
 [project.optional-dependencies]
 test = [
+    "coverage",
     "pytest",
     "pytest-benchmark",
     "pytest-asyncio",
+    "pytest-timeout",
     "hypothesis",
+    "hypothesis-jsonschema",
 ]
 docs = [
     "mkdocs",
