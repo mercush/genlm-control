@@ -25,6 +25,9 @@ custom_type_checker = type_checker.redefine_many(
     }
 )
 
+# Ideally we would be using Draft202012Validator for compatibility with
+# jsonschemabench, but something about the way it's written makes it worse
+# at lazy validation, so we're using an older draft for now.
 LazyCompatibleValidator = validators.extend(
     Draft7Validator, type_checker=custom_type_checker
 )
@@ -74,7 +77,7 @@ class JsonSchema(Potential):
         )
         self.schema = schema
         self.validator = LazyCompatibleValidator(
-            self.schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+            self.schema, format_checker=Draft7Validator.FORMAT_CHECKER
         )
 
     def __check_context(self, context):

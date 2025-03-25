@@ -176,7 +176,8 @@ async def test_always_returns_correctly_on_valid_documents(problem):
         "date-time",
         "date",
         "date-time",
-        "duration",
+        # duration not present in Draft 7 which we're currently using.
+        # "duration",
         "email",
         "hostname",
         "idn-hostname",
