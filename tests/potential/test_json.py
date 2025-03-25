@@ -198,3 +198,9 @@ async def test_validates_formats(format):
 async def test_validates_regex_format():
     potential = JsonSchema({"format": "regex", "type": "string"})
     assert await potential.prefix(b'"["') == -float("inf")
+
+
+@pytest.mark.asyncio
+async def test_will_not_allow_nonsense_after_json():
+    potential = JsonSchema({"type": "object"})
+    assert await potential.complete(b"{} hello world") == -float("inf")

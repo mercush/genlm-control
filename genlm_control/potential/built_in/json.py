@@ -1,4 +1,5 @@
 import json_stream
+import json
 
 from jsonschema import validators, ValidationError, Draft202012Validator
 
@@ -121,6 +122,16 @@ class JsonSchema(Potential):
                 raise
         if incomplete_utf8_at_end:
             raise OutOfBytes()
+
+        # json-stream will just read a JSON object off the start of
+        # the stream and then stop, so we reparse the whole string
+        # with the normal JSON parser to validate it at the end, or
+        # we will allow JSON values to be followed by arbitrary nonsense.
+        # This should only fire when we'd be
+        try:
+            json.loads(context)
+        except json.JSONDecodeError as e:
+            raise ValueError(*e.args)
 
     async def complete(self, context) -> float:
         # TODO:
