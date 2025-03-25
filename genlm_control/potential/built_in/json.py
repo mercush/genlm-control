@@ -74,7 +74,9 @@ class JsonSchema(Potential):
             list(range(256)),
         )
         self.schema = schema
-        self.validator = LazyCompatibleValidator(self.schema)
+        self.validator = LazyCompatibleValidator(
+            self.schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+        )
 
     def __check_context(self, context):
         context = bytes(context)

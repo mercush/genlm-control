@@ -166,3 +166,35 @@ async def test_always_returns_correctly_on_valid_documents(problem):
         # prefix is actually valid JSON and if so allow it.
         json.loads(problem.prefix)
     assert await potential.complete(problem.document) == 0.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "format",
+    [
+        "ipv4",
+        "date-time",
+        "date",
+        "date-time",
+        "duration",
+        "email",
+        "hostname",
+        "idn-hostname",
+        "ipv4",
+        "ipv6",
+        "json-pointer",
+        "relative-json-pointer",
+        "time",
+        "uri",
+        "uri-reference",
+    ],
+)
+async def test_validates_formats(format):
+    potential = JsonSchema({"format": format, "type": "string"})
+    assert await potential.prefix(b'"hello world"') == -float("inf")
+
+
+@pytest.mark.asyncio
+async def test_validates_regex_format():
+    potential = JsonSchema({"format": "regex", "type": "string"})
+    assert await potential.prefix(b'"["') == -float("inf")
