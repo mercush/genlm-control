@@ -1,6 +1,7 @@
 import json_stream
 
-from jsonschema import validators, Draft7Validator, ValidationError
+from jsonschema import validators, ValidationError, Draft202012Validator
+
 from collections.abc import Sequence, Mapping
 from genlm_control.potential.base import Potential
 
@@ -15,7 +16,7 @@ def is_object(checker, instance):
     return isinstance(instance, Mapping)
 
 
-type_checker = Draft7Validator.TYPE_CHECKER
+type_checker = Draft202012Validator.TYPE_CHECKER
 
 custom_type_checker = type_checker.redefine_many(
     {
@@ -25,7 +26,8 @@ custom_type_checker = type_checker.redefine_many(
 )
 
 LazyCompatibleValidator = validators.extend(
-    Draft7Validator, type_checker=custom_type_checker
+    Draft202012Validator,
+    type_checker=custom_type_checker,
 )
 
 
