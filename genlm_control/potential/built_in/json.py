@@ -1,4 +1,5 @@
 import json_stream
+import json
 
 from jsonschema import validators, Draft7Validator, ValidationError
 from collections.abc import Sequence, Mapping
@@ -24,6 +25,9 @@ custom_type_checker = type_checker.redefine_many(
     }
 )
 
+# Ideally we would be using Draft202012Validator for compatibility with
+# jsonschemabench, but something about the way it's written makes it worse
+# at lazy validation, so we're using an older draft for now.
 LazyCompatibleValidator = validators.extend(
     Draft7Validator, type_checker=custom_type_checker
 )
@@ -72,7 +76,9 @@ class JsonSchema(Potential):
             list(range(256)),
         )
         self.schema = schema
-        self.validator = LazyCompatibleValidator(self.schema)
+        self.validator = LazyCompatibleValidator(
+            self.schema, format_checker=Draft7Validator.FORMAT_CHECKER
+        )
 
     def __check_context(self, context):
         context = bytes(context)
@@ -117,6 +123,16 @@ class JsonSchema(Potential):
                 raise
         if incomplete_utf8_at_end:
             raise OutOfBytes()
+
+        # json-stream will just read a JSON object off the start of
+        # the stream and then stop, so we reparse the whole string
+        # with the normal JSON parser to validate it at the end, or
+        # we will allow JSON values to be followed by arbitrary nonsense.
+        # This should only fire when we'd be
+        try:
+            json.loads(context)
+        except json.JSONDecodeError as e:
+            raise ValueError(*e.args)
 
     async def complete(self, context) -> float:
         # TODO:
