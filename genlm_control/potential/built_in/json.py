@@ -1,36 +1,41 @@
 import json_stream
 import json
 
-from jsonschema import validators, Draft7Validator, ValidationError
-from collections.abc import Sequence, Mapping
+from jsonschema import Draft7Validator, ValidationError
 from genlm_control.potential.base import Potential
+from jsonschema import _types
 
 
 def is_sequence(checker, instance):
+    from collections.abc import Sequence, Mapping
+
     return isinstance(instance, Sequence) and not isinstance(
         instance, (str, bytes, bytearray, Mapping)
     )
 
 
 def is_object(checker, instance):
-    return isinstance(instance, Mapping)
+    from json_stream.base import StreamingJSONObject
+    from collections.abc import Mapping
+
+    return isinstance(instance, (Mapping, StreamingJSONObject))
 
 
-type_checker = Draft7Validator.TYPE_CHECKER
+# We're using a streaming JSON library that doesn't return proper lists
+# and dicts. In theory we could use jsonschema's custom typechecker logic
+# here. In practice, this works until it encounters an explicitly specified
+# schema type, at which point it creates a new validator that ignores the
+# type checker. There is probably a sensible official way to fix this (I hope)
+# but I couldn't figure it out and this was expedient and probably won't
+# cause too many problems (I hope) - DRMacIver.
+_types.is_array.__code__ = is_sequence.__code__
+_types.is_object.__code__ = is_object.__code__
 
-custom_type_checker = type_checker.redefine_many(
-    {
-        "array": is_sequence,
-        "object": is_object,
-    }
-)
 
 # Ideally we would be using Draft202012Validator for compatibility with
 # jsonschemabench, but something about the way it's written makes it worse
 # at lazy validation, so we're using an older draft for now.
-LazyCompatibleValidator = validators.extend(
-    Draft7Validator, type_checker=custom_type_checker
-)
+LazyCompatibleValidator = Draft7Validator
 
 
 class OutOfBytes(Exception):
