@@ -205,3 +205,34 @@ async def test_validates_regex_format():
 async def test_will_not_allow_nonsense_after_json():
     potential = JsonSchema({"type": "object"})
     assert await potential.complete(b"{} hello world") == -float("inf")
+
+
+@pytest.mark.asyncio
+async def test_valid_prefix_for_schema_eg1():
+    potential = JsonSchema(
+        {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "type": "array",
+            "items": {
+                "$schema": "http://json-schema.org/draft-04/schema#",
+                "type": "object",
+                "properties": {
+                    "time": {"type": "string", "format": "date-time"},
+                    "relayId": {"type": "string"},
+                    "data": {
+                        "type": "object",
+                        "patternProperties": {
+                            "^[0-9a-zA-Z_-]{1,255}$": {
+                                "type": ["number", "string", "boolean"]
+                            }
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["data"],
+                "additionalProperties": False,
+            },
+        }
+    )
+
+    assert await potential.prefix(b"[{") == 0.0
