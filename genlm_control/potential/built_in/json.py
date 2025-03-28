@@ -1,9 +1,11 @@
-import json_stream
 import json
+import json_stream
+import regex
 
 from jsonschema import Draft7Validator, ValidationError
-from genlm_control.potential.base import Potential
 from jsonschema import _types
+
+from genlm_control.potential.base import Potential
 
 
 def is_sequence(checker, instance):
@@ -75,6 +77,9 @@ def is_utf8_start_byte(n: int) -> bool:
     return False
 
 
+BAD_WHITESPACE = regex.compile(rb"(?:\n\s+\n)|(?:\n\n\n)", regex.MULTILINE)
+
+
 class JsonSchema(Potential):
     def __init__(self, schema):
         super().__init__(
@@ -87,6 +92,12 @@ class JsonSchema(Potential):
 
     def __check_context(self, context):
         context = bytes(context)
+
+        # Sometimes a model can get itself itno a position where it can't
+        # generate any valid tokens, but it can keep generating whitespace
+        # indefinitely.
+        if BAD_WHITESPACE.search(context):
+            raise ValueError("Improper JSON formatting.")
 
         # JSON documents have to be valid UTF-8, but we might be
         # in the middle of generating a UTF-8 character. If so, we
