@@ -236,3 +236,16 @@ async def test_valid_prefix_for_schema_eg1():
     )
 
     assert await potential.prefix(b"[{") == 0.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "ws",
+    [
+        b"\n\n\n",
+        b"\n    \n",
+    ],
+)
+async def test_forbids_weird_whitespace(ws):
+    potential = JsonSchema({})
+    assert await potential.prefix(ws) == -float("inf")
