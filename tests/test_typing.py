@@ -1,5 +1,5 @@
 import pytest
-from genlm_control.typing import (
+from genlm.control.typing import (
     Atomic,
     Sequence,
     infer_type,
@@ -91,3 +91,17 @@ def test_vocabulary_type_inference():
     # Test inconsistent types
     with pytest.raises(ValueError):
         infer_vocabulary_type([1, "2", 3])
+
+
+def test_atomic_convert():
+    int_type = Atomic(int)
+    assert int_type.convert(42) == 42
+    assert int_type.convert("42") == 42
+    repr(int_type)
+
+
+def test_sequence_convert():
+    int_seq = Sequence(Atomic(int))
+    assert int_seq.convert([1, 2, 3]) == (1, 2, 3)
+    assert int_seq.convert(["1", "2", "3"]) == (1, 2, 3)
+    repr(int_seq)

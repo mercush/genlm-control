@@ -1,6 +1,6 @@
-from genlm_control import InferenceEngine
-from genlm_control.potential import PromptedLLM, BoolFSA, Potential
-from genlm_control.sampler import direct_token_sampler, eager_token_sampler
+from genlm.control import SMC
+from genlm.control.potential import PromptedLLM, BoolFSA, Potential
+from genlm.control.sampler import direct_token_sampler, eager_token_sampler
 
 import torch
 import asyncio
@@ -29,14 +29,13 @@ async def main():
     mtl_llm.set_prompt_from_str("Montreal is")
 
     # Load a sampler that proposes tokens by sampling directly from the LM's distribution.
-    sampler = direct_token_sampler(mtl_llm)
+    token_sampler = direct_token_sampler(mtl_llm)
 
-    # Create an inference engine. This is the main object that will be used for
-    # generation using sequence Monte Carlo (SMC).
-    engine = InferenceEngine(sampler)
+    # This is the main object that will be used for generation using sequence Monte Carlo (SMC).
+    seq_sampler = SMC(token_sampler)
 
     # Run SMC with 10 particles, a maximum of 10 tokens, and an ESS threshold of 0.5.
-    sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
+    sequences = await seq_sampler(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nBasic sampling result:")
     print(sequences.posterior)
 
@@ -54,13 +53,13 @@ async def main():
     product = mtl_llm * bos_llm
 
     # Create a sampler that proposes tokens by sampling directly from the product.
-    sampler = direct_token_sampler(product)
+    token_sampler = direct_token_sampler(product)
 
-    # Create an inference engine.
-    engine = InferenceEngine(sampler)
+    # Create an SMC sampler.
+    seq_sampler = SMC(token_sampler)
 
     # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
-    sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
+    sequences = await seq_sampler(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nPrompt intersection result:")
     print(sequences.posterior)
 
@@ -88,13 +87,13 @@ async def main():
     # This sampler is much faster.
     # It will only call the fsa on a subset of the product vocabulary,
     # but maintains the same proper weighting guarantees as the direct sampler.
-    sampler = eager_token_sampler(product, best_fsa)
+    token_sampler = eager_token_sampler(product, best_fsa)
 
-    # Create an inference engine.
-    engine = InferenceEngine(sampler)
+    # Create an SMC sampler.
+    seq_sampler = SMC(token_sampler)
 
     # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
-    sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
+    sequences = await seq_sampler(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nPrompt intersection with regex constraint result:")
     print(sequences.posterior)
 
@@ -170,14 +169,14 @@ async def main():
     # This setup will be much faster.
     # It will only call the sentiment analysis potential only once per particle per step,
     # but maintains the same proper weighting guarantees as the eager sampler.
-    sampler = eager_token_sampler(product, best_fsa)
-    critic = sentiment_analysis.coerce(sampler.target, f=b"".join)
-    engine = InferenceEngine(sampler, critic=critic)
+    token_sampler = eager_token_sampler(product, best_fsa)
+    critic = sentiment_analysis.coerce(token_sampler.target, f=b"".join)
+    seq_sampler = SMC(token_sampler, critic=critic)
 
     # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
     # We also time this inference run for comparison with the next example.
     with timeit("Timing sentiment-guided sampling without autobatching"):
-        sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
+        sequences = await seq_sampler(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nSentiment-guided sampling result:")
     print(sequences.posterior)
 
@@ -193,14 +192,14 @@ async def main():
     # and processes them using the batch methods (`batch_complete`, `batch_prefix`, `batch_logw_next`).
     critic = critic.to_autobatched()
 
-    # Create an inference engine.
-    engine = InferenceEngine(sampler, critic=critic)
+    # Create an SMC sampler.
+    seq_sampler = SMC(token_sampler, critic=critic)
 
     # Run SMC with 10 particles, 10 tokens, and an ESS threshold of 0.5.
     # If you are running this on a machine with a GPU, you should
     # see a significant performance improvement.
     with timeit("Timing sentiment-guided sampling with autobatching"):
-        sequences = await engine(n_particles=10, max_tokens=10, ess_threshold=0.5)
+        sequences = await seq_sampler(n_particles=10, max_tokens=10, ess_threshold=0.5)
     print("\nSentiment-guided sampling with autobatching result:")
     print(sequences.posterior)
 

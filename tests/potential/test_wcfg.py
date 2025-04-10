@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from genlm_grammar import CFG, Float
-from genlm_control.potential.built_in import WCFG, BoolCFG
+from genlm.grammar import CFG, Float, Boolean
+from genlm.control.potential.built_in import WCFG, BoolCFG
 
 
 @pytest.fixture
@@ -12,6 +12,13 @@ def byte_wcfg():
     c.add(1.0, "A", b"a"[0])
     c.add(1.0, "B", b"b"[0])
     return c
+
+
+def test_wcfg_init_wrong_semiring():
+    # Test initialization with non-Float semiring
+    c = CFG(Boolean, S="S", V={b"a"[0], b"b"[0]})
+    with pytest.raises(ValueError):
+        WCFG(c)
 
 
 @pytest.mark.asyncio
@@ -59,6 +66,10 @@ async def test_bcfg_complete(byte_wcfg):
 @pytest.mark.asyncio
 async def test_bcfg_prefix(byte_wcfg):
     pot = BoolCFG(byte_wcfg)
+
+    # Test empty string handling
+    log_weight = await pot.prefix(b"")
+    assert log_weight == 0
 
     log_weight = await pot.prefix(b"ab")
     assert log_weight == 0
@@ -136,3 +147,29 @@ async def test_bcfg_from_lark():
 
     pot_spawned = pot.spawn()
     assert pot_spawned.cfg == pot.cfg
+
+
+def test_wcfg_repr():
+    c = CFG(Float, S="S", V={b"a"[0]})
+    pot = WCFG(c)
+    repr(pot)
+    pot._repr_html_()
+
+
+def test_bcfg_repr():
+    c = CFG(Boolean, S="S", V={b"a"[0]})
+    pot = BoolCFG(c)
+    repr(pot)
+    pot._repr_html_()
+
+
+def test_wcfg_clear_cache():
+    c = CFG(Float, S="S", V={b"a"[0]})
+    pot = WCFG(c)
+    pot.clear_cache()
+
+
+def test_bcfg_clear_cache():
+    c = CFG(Boolean, S="S", V={b"a"[0]})
+    pot = BoolCFG(c)
+    pot.clear_cache()

@@ -1,8 +1,8 @@
 import pytest
 import asyncio
 import numpy as np
-from genlm_control.typing import Atomic
-from genlm_control.potential.base import Potential, EOS
+from genlm.control.typing import Atomic
+from genlm.control.potential.base import Potential, EOS
 
 
 class SimplePotential(Potential):
@@ -100,3 +100,46 @@ async def test_properties(potential):
     await potential.assert_logw_next_consistency([b"b", b"c"], verbosity=1)
     await potential.assert_autoreg_fact([b"b", b"c"], verbosity=1)
     await potential.assert_batch_consistency([[b"b", b"c"], [b"a"]], verbosity=1)
+
+
+def test_initialization_errors():
+    # Test empty vocabulary
+    with pytest.raises(ValueError, match="vocabulary cannot be empty"):
+        SimplePotential([])
+
+    # Test invalid token_type
+    with pytest.raises(ValueError, match="token_type must be a TokenType"):
+        SimplePotential([b"a"], token_type="not a token type")
+
+    # Test wrong token types in vocabulary
+    wrong_type = Atomic(str)  # Using str instead of bytes
+    with pytest.raises(TypeError, match="Tokens in vocabulary must be of type"):
+        SimplePotential([b"a", b"b"], token_type=wrong_type)
+
+    # Test invalid EOS type
+    with pytest.raises(ValueError, match="EOS must be an instance of EndOfSequence"):
+        SimplePotential([b"a"], eos="not an EndOfSequence")
+
+    # Test duplicate tokens
+    with pytest.raises(ValueError, match="Duplicate token.*found in vocabulary"):
+        SimplePotential([b"a", b"a"])
+
+
+@pytest.mark.asyncio
+async def test_zero_weight_context():
+    class ZeroWeightPotential(SimplePotential):
+        async def prefix(self, context):
+            return float("-inf")
+
+    potential = ZeroWeightPotential([b"a", b"b"])
+    with pytest.raises(ValueError, match="Context.*has weight zero under `prefix`."):
+        await potential.logw_next([b"a"])
+
+
+def test_spawn_not_implemented():
+    potential = SimplePotential([b"a"])
+    with pytest.raises(
+        NotImplementedError,
+        match="Potential.spawn\\(\\) must be implemented by subclasses.",
+    ):
+        potential.spawn()

@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from genlm_control.util import LazyWeights
+from genlm.control.util import LazyWeights, load_trie
 
 
 def test_lazy_weights_basic():
@@ -139,3 +139,51 @@ def test_lazy_weights_assert_equal_unordered():
 
     with pytest.raises(AssertionError, match="keys do not match"):
         lw3.assert_equal_unordered(lw1)
+
+
+def test_lazy_weights_keys():
+    weights = np.array([1.0, 2.0, 3.0])
+    encode = {"a": 0, "b": 1, "c": 2}
+    decode = ["a", "b", "c"]
+
+    lw = LazyWeights(weights, encode, decode, log=False)
+    assert lw.keys() == ["a", "b", "c"]
+
+
+def test_lazy_weights_values():
+    weights = np.array([1.0, 2.0, 3.0])
+    encode = {"a": 0, "b": 1, "c": 2}
+    decode = ["a", "b", "c"]
+
+    lw = LazyWeights(weights, encode, decode, log=False)
+    assert list(lw.values()) == [1.0, 2.0, 3.0]
+
+
+def test_lazy_weights_items():
+    weights = np.array([1.0, 2.0, 3.0])
+    encode = {"a": 0, "b": 1, "c": 2}
+    decode = ["a", "b", "c"]
+
+    lw = LazyWeights(weights, encode, decode, log=False)
+    assert list(lw.items()) == [("a", 1.0), ("b", 2.0), ("c", 3.0)]
+
+
+def test_load_trie():
+    vocab = ["a", "b", "c"]
+    trie = load_trie(vocab, backend="sequential")
+    assert trie.decode == vocab
+
+    trie = load_trie(vocab, backend="parallel")
+    assert trie.decode == vocab
+
+    trie = load_trie(vocab)
+    assert trie.decode == vocab
+
+
+def test_lazy_weights_repr():
+    weights = np.array([1.0, 2.0, 3.0])
+    encode = {"a": 0, "b": 1, "c": 2}
+    decode = ["a", "b", "c"]
+
+    lw = LazyWeights(weights, encode, decode, log=False)
+    lw.__repr__()

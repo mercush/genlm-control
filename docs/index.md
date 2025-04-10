@@ -1,93 +1,157 @@
-# GenLM Control
+![Logo](logo.png)
 
-GenLM Control is a library for controlled text generation with programmable constraints. It makes use of sequential Monte Carlo (SMC) to generate text that satisfies constraints or preferences encoded by [potentials](potentials.md).
+[![Docs](https://github.com/genlm/genlm-control/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/genlm-control/)
+[![Tests](https://github.com/genlm/genlm-control/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/genlm-control/)
+[![codecov](https://codecov.io/github/genlm/genlm-control/graph/badge.svg?token=665ffkDXvZ)](https://codecov.io/github/genlm/genlm-control)
 
-## Getting started
+GenLM Control is a library for controlled generation from language models using programmable constraints. It leverages sequential Monte Carlo (SMC) methods to efficiently generate text that satisfies constraints or preferences encoded by arbitrary potential functions.
+
+## Quick Start
+
+To install the package, clone the repository and run `pip install .`:
+
+```bash
+git clone https://github.com/genlm/genlm-control.git
+cd genlm-control
+pip install .
+```
+
+See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project for development.
+
+## Examples
+
+### Controlling an LLM with a regular expression
+
+This is a simple example demonstrating how to constrain an LLM using a regular expression.
 
 ```python
-from genlm_control import (
-    InferenceEngine, PromptedLLM, BoolFSA, eager_token_sampler
-)
+from genlm.control import PromptedLLM, BoolFSA, AWRS
 
-# Create a language model potential
+# Create a language model potential.
 llm = PromptedLLM.from_name("gpt2")
 llm.set_prompt_from_str("Sequential Monte Carlo is")
 
-# Create a finite-state automaton potential using a regular expression
+# Create a finite-state automaton potential using a regular expression.
 fsa = BoolFSA.from_regex(r"\s(good😍|bad🙁)")
 
-# Create a token sampler that combines the language model and FSA
-sampler = eager_token_sampler(llm, fsa)
+# Coerce the FSA so that it operates on the token type of the language model.
+coerced_fsa = fsa.coerce(llm, f=b"".join)
 
-# Set up the inference engine with the sampler
-engine = InferenceEngine(sampler)
+# Create a token sampler that combines the language model and FSA.
+token_sampler = AWRS(llm, coerced_fsa)
 
-# Generate text using SMC. Generation is asynchronous; use `await`.
-sequences = await engine(
+# Generate text using SMC.
+# Generation is asynchronous; use `await` if calling in an async context (like in an async
+# function or in a Jupyter notebook) and `asyncio.run(token_sampler.smc(...))` otherwise.
+sequences = await token_sampler.smc(
     n_particles=10, # Number of candidate sequences to maintain
     ess_threshold=0.5, # Threshold for resampling
     max_tokens=25, # Maximum sequence length
     verbosity=1 # Print particles at each step
 )
 
-# Show the inferred posterior distribution over sequences
-sequences.posterior
+# Show the inferred posterior distribution over complete UTF-8 decodable sequences.
+sequences.decoded_posterior
 ```
 
-See also the examples in `examples/getting_started.py` for more complex usage.
+### Controlling an LLM with a JSON schema
 
-
-## Main components
-
-### [Potentials](potentials.md)
-Potentials are the core objects that guide text generation by:
-
-* Acting as components of **samplers**, which propose new tokens at each step of the generation process.
-* Serving as **critics**, which reweight sequences based on whether they satisfy the constraint encoded by the potential at each step of the generation process.
-
-The library comes with a number of built-in potentials, including
-
-* Language models
-* Finite-state automata specified by regular expressions
-* Context-free grammars specified by Lark grammars
-
-It also supports [user-defined potentials](potentials.md#custom-potentials) and combinations of potentials using [products](potentials.md#products-of-potentials).
-
-See the [Potentials](potentials.md) overview for more details.
-
-### [Samplers](samplers.md)
-
-Samplers generate tokens by sampling from potentials or collections of potentials. This library currently supports a number of different sampling strategies which trade off quality and efficiency.
-
-See the [Samplers](samplers.md) overview for more details.
-
-### Critics
-Critics are used to evaluate the quality of a sequence which is in the process of being generated. Any Potential can serve as a critic. To use them in generation, pass them to the `InferenceEngine` at initialization.
-
-
-## Visualization
-
-The library includes a built-in visualization tool for inference runs, courtesy of [hfppl](https://github.com/probcomp/hfppl).
+This example demonstrates how to control an LLM to generate JSON objects that match a given schema.
 
 ```python
-from genlm_control.viz import InferenceVisualizer
+import json
+from genlm.control import PromptedLLM, JsonSchema, AWRS
 
-# Create a visualizer (starts server on port 8000, you can specify a different port if needed)
-viz = InferenceVisualizer()
+person_schema = {
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "enum": ["Alice", "Bob", "Charlie"],
+            "description": "The name of the person"
+        },
+        "age": {
+            "type": "integer",
+            "minimum": 20,
+            "maximum": 80,
+            "description": "The age of the person"
+        },
+    },
+}
 
-# Run inference and save a record of the inference run to a JSON file
-sequences = await engine(
-    n_particles=10,
-    ess_threshold=0.5,
-    max_tokens=20,
-    json_path="smc_record.json" # save the record to a JSON file
+book_schema = {
+    "type": "object",
+    "properties": {
+        "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The title of the book"
+        },
+        "pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2000,
+            "description": "The number of pages in the book"
+        },
+        "genre": {
+            "type": "string",
+            "enum": ["fiction", "non-fiction", "mystery"],
+            "description": "The genre of the book"
+        }
+    },
+}
+
+# Create a language model potential.
+# Since this task is harder, we use a larger model.
+# (You will need to login via the Hugging Face CLI and have access to the model.)
+llm = PromptedLLM.from_name(
+    "meta-llama/Llama-3.2-1B-Instruct",
+    eos_tokens=[b"<|eom_id|>", b"<|eot_id|>"],
+    temperature=0.8
 )
 
-# Open visualization in browser
-viz.visualize("smc_record.json", auto_open=True)
+# Set the prompt for the language model.
+# Since we are using an instruction-tuned model, we use the chat template.
+# The prompt contains an example of a schema and a generated object,
+# followed by the schema we want to match.
+llm.prompt_ids = llm.model.tokenizer.apply_chat_template(
+    conversation=[
+        {"role": "system", "content": "You need to generate a JSON object that matches the schema below. Only generate the JSON object on a single line with no other text."},
+        {"role": "user", "content": json.dumps(person_schema)},
+        {"role": "assistant", "content": '{"name": "Alice", "age": 30}'},
+        {"role": "user", "content": json.dumps(book_schema)},
+    ],
+    tokenize=True,
+    add_generation_prompt=True
+)
 
-# Clean up when done
-viz.shutdown_server()
+# Create a schema potential.
+schema_potential = JsonSchema(book_schema)
+
+# Coerce the schema potential so that it operates on the token type of the language model.
+coerced_schema = schema_potential.coerce(llm, f=b"".join)
+
+# Create a token sampler that combines the language model and the schema potential.
+token_sampler = AWRS(llm, coerced_schema)
+
+# Generate text using SMC.
+# Generation is asynchronous; use `await` if calling in an async context (like in an async
+# function or in a Jupyter notebook) and `asyncio.run(token_sampler.smc(...))` otherwise.
+sequences = await token_sampler.smc(
+    n_particles=2, # Number of candidate sequences to maintain
+    ess_threshold=0.5, # Threshold for resampling
+    max_tokens=30, # Maximum sequence length
+    verbosity=1 # Print particles at each step
+)
+
+# Show the inferred posterior distribution over complete UTF-8 decodable sequences.
+sequences.decoded_posterior
 ```
 
-Note that if you are SSH-ing onto a remote machine, you may need to set up port forwarding. Visual Studio Code automatically handles this for some ports, including the default port 8000.
+### More examples
+
+See the [examples/getting_started.py](https://github.com/genlm/genlm-control/tree/main/examples/getting_started.py) to get an overview of the full range of features, including how to specify custom potential functions.
+
+## Development
+
+See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project locally.

@@ -1,8 +1,10 @@
 import pytest
 import numpy as np
 
-from genlm_control.sampler.sequence import Importance, SMC
-from genlm_control.sampler.token import DirectTokenSampler
+
+from genlm.control.potential import Potential
+from genlm.control.sampler.sequence import SMC, SequenceModel
+from genlm.control.sampler.token import DirectTokenSampler
 
 from hypothesis import strategies as st, settings, given
 from conftest import (
@@ -11,6 +13,14 @@ from conftest import (
     double_weighted_sequence,
     WeightedSet,
 )
+
+
+@pytest.fixture
+def default_unit_sampler():
+    sequences = ["a", "b", "c"]
+    weights = [1, 2, 3]
+    p = WeightedSet(sequences, weights)
+    return DirectTokenSampler(p)
 
 
 @pytest.mark.asyncio
@@ -23,9 +33,9 @@ async def test_importance(S):
     unit_sampler = DirectTokenSampler(p)
 
     n_particles = 100
-    sampler = Importance(unit_sampler, n_particles)
+    sampler = SMC(unit_sampler)
 
-    sequences = await sampler.infer()
+    sequences = await sampler(n_particles=n_particles, ess_threshold=0, max_tokens=10)
     assert len(sequences) == n_particles
     assert np.isclose(sequences.log_ml, np.log(sum(weights)), atol=1e-3, rtol=1e-5)
 
@@ -41,8 +51,8 @@ async def test_importance_with_critic(S):
     critic = WeightedSet(sequences, weights2)
 
     n_particles = 10
-    sampler = Importance(unit_sampler, n_particles=n_particles, critic=critic)
-    sequences = await sampler.infer()
+    sampler = SMC(unit_sampler, critic=critic)
+    sequences = await sampler(n_particles=n_particles, ess_threshold=0, max_tokens=10)
 
     logeps = await p.prefix([])
     for seq, logw in sequences:
@@ -60,9 +70,11 @@ async def test_smc(S, ess_threshold):
     unit_sampler = DirectTokenSampler(p)
 
     n_particles = 100
-    sampler = SMC(unit_sampler, n_particles, ess_threshold)
+    sampler = SMC(unit_sampler)
 
-    sequences = await sampler.infer()
+    sequences = await sampler(
+        n_particles=n_particles, ess_threshold=ess_threshold, max_tokens=10
+    )
     assert len(sequences) == n_particles
     assert np.isclose(sequences.log_ml, np.log(sum(weights)), atol=1e-3, rtol=1e-5)
 
@@ -80,9 +92,11 @@ async def test_smc_with_critic(ess_threshold):
     critic = WeightedSet(seqs, weights2)
 
     n_particles = 500
-    sampler = SMC(unit_sampler, n_particles, ess_threshold=ess_threshold, critic=critic)
+    sampler = SMC(unit_sampler, critic=critic)
 
-    sequences = await sampler.infer()
+    sequences = await sampler(
+        n_particles=n_particles, ess_threshold=ess_threshold, max_tokens=10
+    )
 
     intersection_ws = [w1 * w2 for w1, w2 in zip(weights1, weights2)]
     assert len(sequences) == n_particles
@@ -110,18 +124,36 @@ async def test_smc_weights(params):
     critic = WeightedSet(sequences, weights2)
 
     n_particles = 10
-    sampler = SMC(
-        unit_sampler,
-        critic=critic,
+    sampler = SMC(unit_sampler, critic=critic)
+
+    sequences = await sampler(
         n_particles=n_particles,
         ess_threshold=0,  # don't resample since that would reset weights
         max_tokens=stop_point,
     )
-
-    sequences = await sampler.infer()
 
     logeps = await p.prefix([])
     for seq, logw in sequences:
         logZ = sum([(await p.logw_next(seq[:n])).sum() for n in range(len(seq))])
         twist = await critic.score(seq)
         assert np.isclose(logw, logZ + logeps + twist)
+
+
+async def test_sequence_model_invalid_start_weight():
+    class MockPotential(Potential):
+        async def prefix(self, context):
+            if not context:
+                return -np.inf
+            return 0
+
+        async def complete(self, context):
+            return 0
+
+    unit_sampler = DirectTokenSampler(MockPotential([0]))
+    seq_model = SequenceModel(unit_sampler)
+    with pytest.raises(ValueError, match="Start weight.*"):
+        await seq_model.start()
+
+
+def test_sequence_model_str_for_serialization(default_unit_sampler):
+    SequenceModel(default_unit_sampler).string_for_serialization()

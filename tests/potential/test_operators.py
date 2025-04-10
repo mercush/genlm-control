@@ -1,5 +1,5 @@
 import pytest
-from genlm_control.potential import (
+from genlm.control.potential import (
     Potential,
     Coerced,
     Product,

@@ -1,8 +1,9 @@
 import re
 import pytest
+import graphviz
 import numpy as np
-from genlm_grammar import WFSA as BaseWFSA, Float
-from genlm_control.potential.built_in import WFSA, BoolFSA
+from genlm.grammar import WFSA as BaseWFSA, Float, Log, Boolean
+from genlm.control.potential.built_in import WFSA, BoolFSA
 from hypothesis import strategies as st, given, settings
 
 
@@ -16,6 +17,19 @@ def float_wfsa():
     m.add_arc(1, b"c"[0], 2, 1)
     m.add_arc(1, b"d"[0], 3, 1)  # dead end
     m.add_F(2, 1.0)
+    return m
+
+
+@pytest.fixture
+def log_wfsa():
+    """Creates a simple WFSA in float semiring"""
+    m = BaseWFSA(Log)
+    m.add_I(0, Log(0.0))
+    m.add_arc(0, b"a"[0], 1, Log(0.0))
+    m.add_arc(1, b"b"[0], 2, Log(np.log(0.6)))
+    m.add_arc(1, b"c"[0], 2, Log(np.log(0.4)))
+    m.add_arc(1, b"d"[0], 3, Log(-float("inf")))  # dead end
+    m.add_F(2, Log(0.0))
     return m
 
 
@@ -194,3 +208,67 @@ async def test_bool_fsa_with_generated_regex(pattern, data):
     for prefix in range(len(byte_string)):
         log_weight = await pot.prefix(byte_string[:prefix])
         assert log_weight == 0, [matching_str, byte_string[:prefix]]
+
+
+def test_wfsa_init_wrong_semiring():
+    # Test initialization with unsupported semiring
+    wfsa = BaseWFSA(Boolean)  # TODO: support this semiring
+    with pytest.raises(ValueError, match="Unsupported semiring"):
+        WFSA(wfsa=wfsa)
+
+
+def test_wfsa_init_float_conversion(log_wfsa):
+    # Test that Float semiring is converted to Log
+    pot = WFSA(wfsa=log_wfsa)
+    assert pot.wfsa.R is Log
+
+
+def test_wfsa_init_log_no_conversion(log_wfsa):
+    # Test that Log semiring is not converted
+    pot = WFSA(wfsa=log_wfsa)
+    assert pot.wfsa.R is Log
+    assert pot.wfsa is log_wfsa
+
+
+def test_wfsa_repr(log_wfsa):
+    pot = WFSA(wfsa=log_wfsa)
+    repr(pot)
+
+    try:
+        pot._repr_svg_()
+    except graphviz.backend.execute.ExecutableNotFound:
+        pytest.skip("Graphviz not installed")
+
+
+def test_bool_fsa_repr(log_wfsa):
+    pot = BoolFSA(wfsa=log_wfsa)
+    repr(pot)
+
+    try:
+        pot._repr_svg_()
+    except graphviz.backend.execute.ExecutableNotFound:
+        pytest.skip("Graphviz not installed")
+
+
+def test_wfsa_spawn(log_wfsa):
+    pot = WFSA(wfsa=log_wfsa)
+    spawned = pot.spawn()
+    assert isinstance(spawned, WFSA)
+
+
+def test_wfsa_clear_cache(log_wfsa):
+    pot = WFSA(wfsa=log_wfsa)
+    pot.clear_cache()
+    assert len(pot.cache) == 1
+    assert () in pot.cache
+
+
+@pytest.mark.asyncio
+async def test_zero_weight_context():
+    pot = WFSA.from_regex(r"a")
+    with pytest.raises(ValueError, match="Context.*has zero weight."):
+        await pot.logw_next(b"b")
+
+    pot = BoolFSA.from_regex(r"a")
+    with pytest.raises(ValueError, match="Context.*has zero weight."):
+        await pot.logw_next(b"b")

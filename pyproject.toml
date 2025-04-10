@@ -15,10 +15,10 @@ authors = [
     { name = "The GenLM Team" },
 ]
 dependencies = [
-    "genlm_grammar>=0.1.0",
-    "genlm-backend>=0.0.1",
-    "hfppl>=0.1.0",
-    "arsenal>=3.1.2",
+    "genlm-grammar==0.2.0a0",
+    "genlm-backend==0.1.0a1",
+    "llamppl",
+    "arsenal @ git+https://github.com/timvieira/arsenal.git",
     "IPython",
     "numpy",
     "torch",
@@ -34,6 +34,8 @@ test = [
     "pytest-benchmark",
     "pytest-asyncio",
     "pytest-timeout",
+    "pytest-cov",
+    "pytest-mock",
     "hypothesis",
     "hypothesis-jsonschema",
 ]
@@ -46,12 +48,8 @@ docs = [
     "mkdocs-section-index",
 ]
 
+[tool.setuptools.packages.find]
+include = ["genlm", "genlm/control"]
+
 [tool.setuptools]
-packages = [
-    "genlm_control",
-    "genlm_control.experimental",
-    "genlm_control.potential",
-    "genlm_control.potential.built_in",
-    "genlm_control.sampler",
-]
-package-data = { "genlm_control" = ["html/*"] }
+package-data = { "genlm.control" = ["html/*"] }

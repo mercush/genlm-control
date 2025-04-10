@@ -5,7 +5,13 @@ import tempfile
 import time
 import requests
 from pathlib import Path
-from genlm_control.viz import InferenceVisualizer
+from genlm.control.viz import InferenceVisualizer
+
+
+@pytest.fixture
+def mocker(request):
+    """Fixture to provide mocker."""
+    return request.getfixturevalue("mocker")
 
 
 def is_port_in_use(port):
@@ -116,7 +122,60 @@ def test_port_in_use():
     """Test that appropriate error is raised when port is in use."""
     viz1 = InferenceVisualizer(port=8002)
     try:
-        with pytest.raises(OSError):
+        with pytest.raises(OSError, match="Port.*already in use"):
             InferenceVisualizer(port=8002)
     finally:
         viz1.shutdown_server()
+
+
+def test_html_file_request():
+    """Test that HTML file requests are handled correctly."""
+    viz = InferenceVisualizer()
+    try:
+        response = requests.get("http://localhost:8000/smc.html")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+    finally:
+        viz.shutdown_server()
+
+
+def test_server_not_running():
+    """Test error when server is not running."""
+    viz = InferenceVisualizer()
+    viz.shutdown_server()
+    with pytest.raises(RuntimeError, match="Server is not running"):
+        viz.visualize("test.json")
+
+
+def test_file_not_found():
+    """Test error when JSON file doesn't exist."""
+    viz = InferenceVisualizer()
+    try:
+        with pytest.raises(FileNotFoundError, match="JSON file not found"):
+            viz.visualize("nonexistent.json")
+    finally:
+        viz.shutdown_server()
+
+
+def test_auto_open_browser(mocker):
+    """Test auto-opening browser functionality."""
+    mock_open = mocker.patch("webbrowser.open")
+    viz = InferenceVisualizer()
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".json", mode="w") as f:
+            json.dump([], f)
+            f.flush()
+            viz.visualize(f.name, auto_open=True)
+        mock_open.assert_called_once()
+    finally:
+        viz.shutdown_server()
+
+
+def test_other_oserror(mocker):
+    """Test handling of OSError other than port in use."""
+    with mocker.patch(
+        "socketserver.TCPServer.server_bind",
+        side_effect=OSError(99, "Some other error"),
+    ):
+        with pytest.raises(OSError, match="Some other error"):
+            InferenceVisualizer()

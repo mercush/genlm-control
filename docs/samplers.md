@@ -56,7 +56,7 @@ token, logw, logp = await sampler.sample(context)
 For convenience, we provide factory methods for creating token samplers from potentials.
 
 ```python
-from genlm_control.sampler import direct_token_sampler, topk_token_sampler, eager_token_sampler
+from genlm.control.sampler import direct_token_sampler, topk_token_sampler, eager_token_sampler
 
 direct_sampler = direct_token_sampler(llm)
 
