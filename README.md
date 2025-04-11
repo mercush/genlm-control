@@ -36,10 +36,10 @@ from genlm.control import PromptedLLM, BoolFSA, AWRS
 
 # Create a language model potential.
 llm = PromptedLLM.from_name("gpt2")
-llm.set_prompt_from_str("Sequential Monte Carlo is")
+llm.set_prompt_from_str("Here is my honest opinion:")
 
 # Create a finite-state automaton potential using a regular expression.
-fsa = BoolFSA.from_regex(r"\s(good😍|bad🙁)")
+fsa = BoolFSA.from_regex(r" SMC is (🔥🔥|😍😍|🤌🤌) with LMs")
 
 # Coerce the FSA so that it operates on the token type of the language model.
 coerced_fsa = fsa.coerce(llm, f=b"".join)
@@ -53,15 +53,14 @@ token_sampler = AWRS(llm, coerced_fsa)
 sequences = await token_sampler.smc(
     n_particles=10, # Number of candidate sequences to maintain
     ess_threshold=0.5, # Threshold for resampling
-    max_tokens=25, # Maximum sequence length
+    max_tokens=30, # Maximum sequence length
     verbosity=1 # Print particles at each step
 )
 
-# Show the inferred posterior distribution over complete UTF-8 decodable sequences.
 sequences.decoded_posterior
 # Example output:
 # {
-#   ' good😍': 1.0,
+#   ' SMC is 🔥🔥 with LMs': 1.0,
 # }
 ```
 

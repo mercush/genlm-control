@@ -21,13 +21,9 @@ jobs:
           python-version: 3.11.5
           cache: 'pip'
 
-      - name: Clear pip cache
-        run: |
-          pip cache purge
-
-      - name: Configure Git to use PAT
-        run: |
-          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+      # - name: Clear pip cache
+      #   run: |
+      #     pip cache purge
 
       - name: Run Tests
         run: |

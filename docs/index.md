@@ -29,10 +29,10 @@ from genlm.control import PromptedLLM, BoolFSA, AWRS
 
 # Create a language model potential.
 llm = PromptedLLM.from_name("gpt2")
-llm.set_prompt_from_str("Sequential Monte Carlo is")
+llm.set_prompt_from_str("Here is my honest opinion:")
 
 # Create a finite-state automaton potential using a regular expression.
-fsa = BoolFSA.from_regex(r"\s(good😍|bad🙁)")
+fsa = BoolFSA.from_regex(r" SMC is (🔥🔥|😍😍|🤌🤌) with LMs")
 
 # Coerce the FSA so that it operates on the token type of the language model.
 coerced_fsa = fsa.coerce(llm, f=b"".join)
@@ -46,12 +46,15 @@ token_sampler = AWRS(llm, coerced_fsa)
 sequences = await token_sampler.smc(
     n_particles=10, # Number of candidate sequences to maintain
     ess_threshold=0.5, # Threshold for resampling
-    max_tokens=25, # Maximum sequence length
+    max_tokens=30, # Maximum sequence length
     verbosity=1 # Print particles at each step
 )
 
-# Show the inferred posterior distribution over complete UTF-8 decodable sequences.
 sequences.decoded_posterior
+# Example output:
+# {
+#   ' SMC is 🔥🔥 with LMs': 1.0,
+# }
 ```
 
 ### Controlling an LLM with a JSON schema
@@ -146,6 +149,11 @@ sequences = await token_sampler.smc(
 
 # Show the inferred posterior distribution over complete UTF-8 decodable sequences.
 sequences.decoded_posterior
+# Example output:
+# {
+#   '{"title": "The Lord of the Rings", "pages": 1200, "genre": "fiction"}': 0.5008318164809697,
+#   '{"title": "The Great Gatsby", "pages": 178, "genre": "fiction"}': 0.49916818351903025,
+# }
 ```
 
 ### More examples
