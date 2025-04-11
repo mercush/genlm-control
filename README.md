@@ -5,6 +5,7 @@
 [![Docs](https://github.com/genlm/genlm-control/actions/workflows/docs.yml/badge.svg)](https://genlm.github.io/genlm-control/)
 [![Tests](https://github.com/genlm/genlm-control/actions/workflows/pytest.yml/badge.svg)](https://genlm.github.io/genlm-control/)
 [![codecov](https://codecov.io/github/genlm/genlm-control/graph/badge.svg?token=665ffkDXvZ)](https://codecov.io/github/genlm/genlm-control)
+[![PyPI](https://img.shields.io/pypi/v/genlm-control?label=pypi)](https://pypi.org/project/genlm-control/)
 
 </div>
 
@@ -15,12 +16,10 @@ See the [docs](https://genlm.github.io/genlm-control) for details.
 
 ## Quick Start
 
-To install the package, clone the repository and run `pip install .`:
+This library can be installed using pip:
 
 ```bash
-git clone https://github.com/genlm/genlm-control.git
-cd genlm-control
-pip install .
+pip install genlm-control
 ```
 
 See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project for development.

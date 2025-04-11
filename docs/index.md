@@ -8,12 +8,10 @@ GenLM Control is a library for controlled generation from language models using 
 
 ## Quick Start
 
-To install the package, clone the repository and run `pip install .`:
+This library can be installed using pip:
 
 ```bash
-git clone https://github.com/genlm/genlm-control.git
-cd genlm-control
-pip install .
+pip install genlm-control
 ```
 
 See [DEVELOPING.md](https://github.com/genlm/genlm-control/tree/main/DEVELOPING.md) for details on how to install the project for development.

@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "genlm-control"
 dynamic = ["version"]
-description = ""
+description = "Controlled generation from LMs using programmable constraints"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -18,11 +18,10 @@ dependencies = [
     "genlm-grammar>=0.2.0",
     "genlm-backend>=0.1.0",
     "llamppl",
-    "arsenal @ git+https://github.com/timvieira/arsenal.git",
+    "arsenal>=3.1.3",
     "IPython",
     "numpy",
     "torch",
-    "python-lsp-server",
     "json-stream",
     "jsonschema[format-nongpl]",
 ]

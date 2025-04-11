@@ -139,6 +139,7 @@ async def test_smc_weights(params):
         assert np.isclose(logw, logZ + logeps + twist)
 
 
+@pytest.mark.asyncio
 async def test_sequence_model_invalid_start_weight():
     class MockPotential(Potential):
         async def prefix(self, context):
