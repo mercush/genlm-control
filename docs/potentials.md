@@ -1,6 +1,11 @@
 # Potentials
 
-[Potentials](../reference/genlm_control/potential/__init__/) are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning non-negative weights to sequences of tokens.
+[Potentials][genlm.control.potential] are the core object in `genlm-control`. A potential encodes constraints or preferences by assigning non-negative weights to sequences of tokens.
+
+Potentials guide text generation by:
+
+* Acting as components of [**samplers**](samplers.md), which serve to propose new tokens at each step of the generation process.
+* Serving as **critics**, which serve to reweight sequences based on whether they satisfy the constraint encoded by the potential at each step of the generation process.
 
 ## Key concepts
 
@@ -45,7 +50,7 @@ By default, these methods simply call the corresponding non-batch method for all
 
 ### Language models
 
-[`PromptedLLM`](../reference/genlm_control/potential/built_in/llm/__init__) represents a language model conditioned on a fixed prompt prefix.
+[`PromptedLLM`][genlm.control.potential.built_in.llm.PromptedLLM] represents a language model conditioned on a fixed prompt prefix.
 
 ```python
 # Load GPT-2 with temperature 0.5
@@ -59,7 +64,7 @@ llm.set_prompt_from_str("Montreal is")
 
 ### Finite-state automata
 
-`genlm-control` provides two [FSA implementations](../reference/genlm_control/potential/built_in/wfsa/__init__):
+`genlm-control` provides two [FSA implementations][genlm.control.potential.built_in.wfsa]:
 
 1. `WFSA` (Weighted Finite-State Automata) - For weighted constraints:
 ```python
@@ -83,7 +88,7 @@ Both FSAs:
 
 ### Context-free grammars
 
-Similar to FSAs, `genlm-control` provides two [CFG implementations](../reference/genlm_control/potential/built_in/wcfg/__init__):
+Similar to FSAs, `genlm-control` provides two [CFG implementations][genlm.control.potential.built_in.wcfg]:
 
 1. `WCFG` (Weighted Context-Free Grammar).
 ```python
@@ -169,7 +174,7 @@ When implementing custom potentials, be aware of these common issues:
 
 ### Testing your custom potential
 
-Potentials automatically inherit from the [`PotentialTests`](../reference/genlm_control/potential/testing) mixin, which provides a number of tests for validating the correctness of the potential's implementation.
+Potentials automatically inherit from the [`PotentialTests`][genlm.control.potential.testing] mixin, which provides a number of tests for validating the correctness of the potential's implementation.
 
 ```python
 # These will raise an exception if the potential implementation does not satisfy the properties
@@ -182,7 +187,7 @@ await potential.assert_batch_consistency(contexts)
 
 ### Products of potentials
 
-The [`Product`](../reference/genlm_control/potential/product) class allows you to combine two potentials. A `Product` is itself is a potential, meaning that it implements all potential methods and that it is possible to chain products to combine more than two potentials.
+The [`Product`][genlm.control.potential.product] class allows you to combine two potentials. A `Product` is itself is a potential, meaning that it implements all potential methods and that it is possible to chain products to combine more than two potentials.
 
 ```python
 # Example: Prompt intersection
@@ -208,7 +213,7 @@ The product potential operates on the intersection of the two potentials' vocabu
 
 ### Coerced potentials
 
-The [`Coerced`](../reference/genlm_control/potential/coerce) class allows you to adapt a potential to work with a different vocabulary using a coercion function. The coercion function must map between sequences in the new vocabulary and sequences in the potential's original vocabulary. This is particularly useful when combining potentials that operate on different types of tokens.
+The [`Coerced`][genlm.control.potential.coerce] class allows you to adapt a potential to work with a different vocabulary using a coercion function. The coercion function must map between sequences in the new vocabulary and sequences in the potential's original vocabulary. This is particularly useful when combining potentials that operate on different types of tokens.
 
 ```python
 # Example: Coercing a byte-level FSA to work with a language model's tokens

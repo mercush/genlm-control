@@ -9,7 +9,7 @@ class MultiProcPotential(Potential):
 
     Creates a process pool of worker processes, each containing an instance of the potential.
 
-    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+    This class inherits all methods from [`Potential`][genlm.control.potential.base.Potential].
     Each method delegates to a corresponding method of the potential instances running in the
     worker processes, distributing work across multiple processes for improved performance.
     """

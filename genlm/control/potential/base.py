@@ -26,7 +26,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
     Subclasses must minimally implement `complete` and `prefix`. `logw_next` and batched versions of the above methods
     come with default implementations, but may be overridden by subclasses for improved performance.
 
-    All Potentials must satisfy a set of properties which can be tested using [PotentialTests](testing.md#genlm_control.potential.testing.PotentialTests).
+    All Potentials must satisfy a set of properties which can be tested using [PotentialTests][genlm.control.potential.testing.PotentialTests].
 
     Attributes:
         token_type (TokenType): The type of tokens in the vocabulary.
@@ -272,7 +272,7 @@ class Potential(ABC, PotentialOps, PotentialTests):
         Spawn a fresh instance of the potential.
 
         This method is not required by default, but may be implemented by subclasses
-        to support CPU-parallelism using (`MultiProcPotential`)[genlm_control.potential.multi_proc.MultiProcPotential].
+        to support CPU-parallelism using (`MultiProcPotential`)[genlm.control.potential.multi_proc.MultiProcPotential].
         """
         raise NotImplementedError(
             "Potential.spawn() must be implemented by subclasses."

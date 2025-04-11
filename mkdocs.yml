@@ -33,11 +33,12 @@ plugins:
 
 nav:
   - Home: index.md
-  - Code Reference: reference/
-  - Core Concepts:
+  - API Reference: reference/
+  - Guides:
+    - Getting Started: getting_started.md
     - Potentials: potentials.md
     - Samplers: samplers.md
-  - Performance: performance.md
+    - Performance: performance.md
 
 markdown_extensions:
   - pymdownx.highlight:

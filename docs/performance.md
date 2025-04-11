@@ -22,7 +22,7 @@ results = await asyncio.gather(
 )
 ```
 
-This creates a new potential that is a wrapper ([`AutoBatchedPotential`](../reference/genlm_control/potential/autobatch)) around the original potential. The wrapper automatically collects concurrent requests in the background and processes them together using the potential's batch methods. This happens transparently without requiring changes to your code structure.
+This creates a new potential that is a wrapper ([`AutoBatchedPotential`][genlm.control.potential.autobatch]) around the original potential. The wrapper automatically collects concurrent requests in the background and processes them together using the potential's batch methods. This happens transparently without requiring changes to your code structure.
 
 ## Multiprocessing
 
@@ -41,7 +41,7 @@ results = await asyncio.gather(
 )
 ```
 
-This creates a new potential that is a wrapper ([`MultiProcPotential`](../reference/genlm_control/potential/multi_proc)) around the original potential. The wrapper asynchronously distributes requests across multiple processes (in a non-blocking manner). This allows you to scale your computations across multiple cores without changing your code structure.
+This creates a new potential that is a wrapper ([`MultiProcPotential`][genlm.control.potential.multi_proc]) around the original potential. The wrapper asynchronously distributes requests across multiple processes (in a non-blocking manner). This allows you to scale your computations across multiple cores without changing your code structure.
 
 ### Requirements
 

@@ -10,7 +10,7 @@
 
 GenLM Control is a library for controlled generation from language models using programmable constraints. It leverages sequential Monte Carlo (SMC) methods to efficiently generate text that satisfies constraints or preferences encoded by arbitrary potential functions.
 
-See the [docs](https://genlm.github.io/genlm-control/) for details.
+See the [docs](https://genlm.github.io/genlm-control) for details.
 
 
 ## Quick Start
@@ -29,7 +29,7 @@ See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project for
 
 ### Controlling an LLM with a regular expression
 
-This is a simple example demonstrating how to constrain an LLM using a regular expression.
+This example demonstrates how to constrain an LLM using a regular expression.
 
 ```python
 from genlm.control import PromptedLLM, BoolFSA, AWRS
@@ -165,7 +165,7 @@ sequences.decoded_posterior
 
 ### More examples
 
-See the [examples/getting_started.py](https://github.com/genlm/genlm-control/tree/main/examples/getting_started.py) to get an overview of the full range of features, including how to specify custom potential functions.
+See the [docs](https://genlm.github.io/genlm-control/getting_started) for more examples.
 
 ## Development
 

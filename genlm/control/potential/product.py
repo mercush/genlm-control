@@ -16,7 +16,7 @@ class Product(Potential):
 
     The new potential's vocabulary is the intersection of the two potentials' vocabularies.
 
-    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential],
+    This class inherits all methods from [`Potential`][genlm.control.potential.base.Potential],
     see there for method documentation.
 
     Attributes:
@@ -46,6 +46,14 @@ class Product(Potential):
             raise ValueError(
                 "Potentials in product must have the same token type. "
                 f"Got {self.p1.token_type} and {self.p2.token_type}."
+                + (
+                    "\nMaybe you forgot to coerce the potentials to the same token type? See `Coerce`."
+                    if (
+                        self.p1.token_type.is_iterable_of(self.p2.token_type)
+                        or self.p2.token_type.is_iterable_of(self.p1.token_type)
+                    )
+                    else ""
+                )
             )
 
         common_vocab = list(set(p1.vocab) & set(p2.vocab))

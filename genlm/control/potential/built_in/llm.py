@@ -52,7 +52,7 @@ class PromptedLLM(Potential):
     - Tokens to treat as end-of-sequence tokens are specified via the `eos_tokens` argument.\n
     - These tokens are excluded from the potential's vocabulary and as such do not appear in the `vocab` attribute.\n
         This means they cannot appear in any input contexts to the potential nor in the output of `logw_next`. They can be used in the prompt however.\n
-    - The log probability assigned to the `genlm_control`'s reserved `EOS` token is the sum of the log probabilities of all the specified EOS tokens.\n
+    - The log probability assigned to the `genlm.control`'s reserved `EOS` token is the sum of the log probabilities of all the specified EOS tokens.\n
 
     This class wraps an `AsyncLM` instance.
     """

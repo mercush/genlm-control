@@ -20,7 +20,7 @@ class AutoBatchedPotential(Potential):
     delegating to the corresponding batch methods of the underlying potential
     (`batch_complete`, `batch_prefix`, `batch_score`, `batch_logw_next`).
 
-    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+    This class inherits all methods from [`Potential`][genlm.control.potential.base.Potential].
 
     Attributes:
         potential (Potential): The underlying potential instance that is being wrapped.

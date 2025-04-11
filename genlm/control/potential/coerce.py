@@ -10,7 +10,7 @@ class Coerced(Potential):
     This class allows a potential to be adapted to work with a different set of tokens,
     defined by a target vocabulary and coersion function.
 
-    This class inherits all methods from [`Potential`][genlm_control.potential.base.Potential].
+    This class inherits all methods from [`Potential`][genlm.control.potential.base.Potential].
     Each method delegates to the corresponding method of the underlying potential, but first
     maps any input token sequences from the target vocabulary to the original potential's vocabulary
     using the coercion function.

@@ -10,7 +10,7 @@ class PotentialOps:
     def __mul__(self, other):
         """Take the product of two potentials.
 
-        See [`Product`][genlm_control.potential.product.Product] for more details.
+        See [`Product`][genlm.control.potential.product.Product] for more details.
 
         Args:
             other (Potential): Another potential instance to take the product with.
@@ -28,7 +28,7 @@ class PotentialOps:
     def coerce(self, other, f, prune=True):
         """Coerce the current potential to operate on the vocabulary of another potential.
 
-        See [`Coerced`][genlm_control.potential.coerce.Coerced] for more details.
+        See [`Coerced`][genlm.control.potential.coerce.Coerced] for more details.
 
         Args:
             other (Potential): The potential instance whose vocabulary will be used.
@@ -46,7 +46,7 @@ class PotentialOps:
     def to_autobatched(self):
         """Create a new potential instance that automatically batches concurrent requests to the instance methods.
 
-        See [`AutoBatchedPotential`][genlm_control.potential.autobatch.AutoBatchedPotential] for more details.
+        See [`AutoBatchedPotential`][genlm.control.potential.autobatch.AutoBatchedPotential] for more details.
 
         Returns:
             (AutoBatchedPotential): A new potential instance that wraps the current potential and automatically batches concurrent requests to the instance methods.
@@ -58,7 +58,7 @@ class PotentialOps:
     def to_multiprocess(self, num_workers=2, spawn_args=None):
         """Create a new potential instance that parallelizes operations using multiprocessing.
 
-        See [`MultiProcPotential`][genlm_control.potential.multi_proc.MultiProcPotential] for more details.
+        See [`MultiProcPotential`][genlm.control.potential.multi_proc.MultiProcPotential] for more details.
 
         Args:
             num_workers (int): The number of workers to use in the multiprocessing pool.

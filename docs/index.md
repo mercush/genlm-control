@@ -16,13 +16,13 @@ cd genlm-control
 pip install .
 ```
 
-See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project for development.
+See [DEVELOPING.md](https://github.com/genlm/genlm-control/tree/main/DEVELOPING.md) for details on how to install the project for development.
 
 ## Examples
 
 ### Controlling an LLM with a regular expression
 
-This is a simple example demonstrating how to constrain an LLM using a regular expression.
+This example demonstrates how to constrain an LLM using a regular expression.
 
 ```python
 from genlm.control import PromptedLLM, BoolFSA, AWRS
@@ -158,8 +158,8 @@ sequences.decoded_posterior
 
 ### More examples
 
-See the [examples/getting_started.py](https://github.com/genlm/genlm-control/tree/main/examples/getting_started.py) to get an overview of the full range of features, including how to specify custom potential functions.
+See [getting_started.md](getting_started.md) to get an overview of the full range of features, including how to specify custom potential functions.
 
 ## Development
 
-See [DEVELOPING.md](DEVELOPING.md) for details on how to install the project locally.
+See [DEVELOPING.md](https://github.com/genlm/genlm-control/tree/main/DEVELOPING.md) for details on how to install the project locally.

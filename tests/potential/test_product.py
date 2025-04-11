@@ -1,3 +1,4 @@
+import re
 import pytest
 import numpy as np
 from genlm.control.potential import Product, Potential
@@ -172,3 +173,28 @@ async def test_product_laziness():
     await product.complete([])
     assert product.p1.complete_calls == 1
     assert product.p2.complete_calls == 0
+
+
+def test_product_token_type_mismatch():
+    p1 = SimplePotential([b"a", b"b", b"c"], scale=1.0)
+    p2 = SimplePotential([0, 1, 2], scale=2.0)
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Potentials in product must have the same token type. "
+            + "Got Atomic(bytes) and Atomic(int)."
+            + "\nMaybe you forgot to coerce the potentials to the same token type? See `Coerce`."
+        ),
+    ):
+        Product(p1, p2)
+
+    p1 = SimplePotential([b"a", b"b", b"c"], scale=1.0)
+    p2 = SimplePotential(["a", "b", "c"], scale=2.0)
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Potentials in product must have the same token type. "
+            + "Got Atomic(bytes) and Atomic(str)."
+        ),
+    ):
+        Product(p1, p2)
