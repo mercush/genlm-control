@@ -35,7 +35,7 @@ test = [
     "pytest-timeout",
     "pytest-cov",
     "pytest-mock",
-    "hypothesis",
+    "hypothesis==6.130.13",
     "hypothesis-jsonschema",
 ]
 docs = [
