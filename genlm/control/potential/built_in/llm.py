@@ -1,8 +1,6 @@
 import torch
 import warnings
-import numpy as np
 from typing import NamedTuple
-from arsenal.maths import logsumexp
 from genlm.control.potential.base import Potential
 
 
