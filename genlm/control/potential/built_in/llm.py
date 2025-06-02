@@ -291,20 +291,21 @@ class PromptedLLM(Potential):
         is the sum of the log probabilities of `self.eos_tokens`.
 
         Args:
-            logw_next (np.array): The log probabilities for the next tokens.
+            logw_next (torch.tensor): The log probabilities for the next tokens.
 
         Returns:
             (LazyWeights): Processed log probabilities for the next tokens.
         """
         # This is ugly, but it's useful for all potentials to adhere to the convention
         # of keeping the EOS token at the end of the weights array.
-        _logw_next = np.full(len(self.vocab) + 1, -np.inf, dtype=logw_next.dtype)
         logw_next = logw_next[: len(self.token_maps.decode)]
+        logw_next = logw_next.log_softmax(dim=0)
+        _logw_next = torch.full((len(self.vocab) + 1,), float('-inf'), dtype=logw_next.dtype, device=logw_next.device)
         _logw_next[: len(self.vocab)] = logw_next[
-            ~np.isin(np.arange(len(logw_next)), self.token_maps.eos_idxs)
+            ~torch.isin(torch.arange(len(logw_next)), torch.tensor(self.token_maps.eos_idxs))
         ]
-        _logw_next[-1] = logsumexp(logw_next[self.token_maps.eos_idxs])
-        return self.make_lazy_weights(_logw_next)
+        _logw_next[-1] = torch.logsumexp(logw_next[self.token_maps.eos_idxs], dim=0).item()
+        return self.make_lazy_weights(_logw_next.float().cpu().numpy())
 
     async def logw_next(self, context):
         """Get log probabilities for next tokens given the prompt and `context`.
@@ -320,7 +321,7 @@ class PromptedLLM(Potential):
                 self.prompt_ids + self.encode_tokens(context)
             )
         )
-        return self._process_logw_next(logw_next.float().cpu().numpy())
+        return self._process_logw_next(logw_next)
 
     async def batch_logw_next(self, contexts):
         """Get log probabilities for next tokens given the prompt and `context`, for a batch of contexts.
@@ -338,7 +339,7 @@ class PromptedLLM(Potential):
         )
         return [
             self._process_logw_next(logw_next)
-            for logw_next in logw_nexts.float().cpu().numpy()
+            for logw_next in logw_nexts
         ]
 
     def __repr__(self):
